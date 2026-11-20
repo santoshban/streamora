@@ -1,192 +1,184 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { api, errorText } from '../lib/api';
-import { formatRuntime } from '../lib/format';
-import { useRouter } from '../lib/router';
-import type { Card, PlayTarget } from '../lib/types';
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FilmIcon, PlayIcon, PlusIcon, TvIcon, XIcon } from './Icons';
-import { Badge, useToast } from './ui';
-
-export const watchUrl = (target: PlayTarget) => `/watch/${target.fileId}?t=${Math.floor(target.resume ? target.positionSeconds : 0)}`;
-
-/** Opens the detail modal for a title (via `?title=` so Back closes it). */
-export function useOpenTitle() {
-  const { setQuery } = useRouter();
-  return (id: number) => {
-    titleOpenedInApp = true;
-    setQuery({ title: String(id) });
-  };
-}
-export let titleOpenedInApp = false;
-export const resetTitleOpened = () => {
-  titleOpenedInApp = false;
-};
-
-/** Add/remove from My List with optimistic state and a toast on failure. */
-export function useListToggle(initial: boolean, id: number, onChange?: (inList: boolean) => void) {
-  const [inList, setInList] = useState(initial);
-  const toast = useToast();
-  const toggle = async () => {
-    const next = !inList;
-    setInList(next);
-    try {
-      await (next ? api.put(`/api/catalog/my-list/${id}`) : api.del(`/api/catalog/my-list/${id}`));
-      onChange?.(next);
-      toast(next ? 'Added to My List' : 'Removed from My List');
-    } catch (err) {
-      setInList(!next);
-      toast(errorText(err), 'error');
-    }
-  };
-  return [inList, toggle] as const;
-}
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from '../lib/router';
+import type { Card } from '../lib/types';
+import { ChevronLeftIcon, ChevronRightIcon, FilmIcon, TvIcon } from './Icons';
+import { TileTag, usePreview } from './Preview';
+import { useOpenTitle } from './titleActions';
 
 function Artwork({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   if (!src || failed) return null;
-  return <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} className={className} />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      className={`transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'} ${className ?? ''}`}
+    />
+  );
 }
 
-/** Card used in rows and grids: 16:9 artwork with title, hover actions and progress. */
-export function TitleCard({ card, onRemove }: { card: Card; onRemove?: () => void }) {
+/** A 16:9 tile ("boxart"). Hovering with a mouse opens the preview card; clicking opens
+ *  the detail modal, zooming out of the tile. */
+export function TitleCard({ card, onRemove, tag }: { card: Card; onRemove?: () => void; tag?: string | null }) {
   const openTitle = useOpenTitle();
-  const { navigate } = useRouter();
-  const [inList, toggleList] = useListToggle(card.inList, card.id);
+  const preview = usePreview();
+  const art = useRef<HTMLDivElement>(null);
   const image = card.thumb ?? card.backdrop ?? card.poster;
-  const meta = [card.year, card.kind === 'show' ? 'Series' : formatRuntime(card.runtimeMinutes)].filter(Boolean).join(' · ');
 
-  const play = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (card.target) navigate(watchUrl(card.target));
-    else openTitle(card.id);
+  const open = () => {
+    preview.dismiss();
+    openTitle(card.id, art.current);
   };
 
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={() => openTitle(card.id)}
+      aria-label={card.title}
+      onClick={open}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') openTitle(card.id);
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
       }}
-      className="group/card relative w-full cursor-pointer rounded-md bg-neutral-800 shadow-lg outline-none transition duration-200 hover:z-10 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-white"
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse' && art.current) preview.schedule({ card, anchor: art.current, onRemove, tag });
+      }}
+      onPointerLeave={preview.cancel}
+      className="group/tile block w-full cursor-pointer outline-none"
     >
-      <div className="relative aspect-video overflow-hidden rounded-md">
-        <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-neutral-700 to-neutral-900 text-neutral-500">
-          {card.kind === 'show' ? <TvIcon size={36} /> : <FilmIcon size={36} />}
+      <div
+        ref={art}
+        className="relative aspect-video overflow-hidden rounded-[var(--tile-radius)] bg-raised ring-white ring-offset-2 ring-offset-surface transition-[filter] duration-300 group-focus-visible/tile:ring-2 can-hover:group-hover/tile:brightness-110"
+      >
+        <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#2f2f2f] to-[#1c1c1c] text-neutral-600">
+          {card.kind === 'show' ? <TvIcon size={32} /> : <FilmIcon size={32} />}
         </div>
         <Artwork src={image} alt="" className={`absolute inset-0 size-full object-cover ${image === card.poster ? 'object-top' : ''}`} />
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-2.5">
+        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+        <div className={`absolute inset-x-0 bottom-0 px-[0.65em] text-[clamp(11px,0.9vw,15px)] ${tag ? 'pb-[1.8em]' : 'pb-[0.6em]'}`}>
           {card.logo ? (
-            <Artwork src={card.logo} alt={card.title} className="max-h-10 max-w-[70%] object-contain object-left drop-shadow-lg" />
+            <Artwork src={card.logo} alt={card.title} className="max-h-[2.6em] max-w-[68%] object-contain object-left-bottom drop-shadow-lg" />
           ) : (
-            <p className="line-clamp-2 text-sm font-bold drop-shadow">{card.title}</p>
-          )}
-          {card.target?.episodeLabel && (
-            <p className="mt-0.5 truncate text-xs text-neutral-300">
-              {card.target.episodeLabel} {card.target.episodeTitle && `· ${card.target.episodeTitle}`}
-            </p>
+            <p className="line-clamp-2 leading-tight font-bold drop-shadow">{card.title}</p>
           )}
         </div>
-        {card.progress !== undefined && card.progress > 0 && (
-          <div className="absolute inset-x-2.5 bottom-1 h-1 overflow-hidden rounded-full bg-neutral-600/80">
-            <div className="h-full bg-brand" style={{ width: `${Math.max(3, card.progress * 100)}%` }} />
-          </div>
-        )}
-        {card.resolution === '4K' && (
-          <span className="absolute top-2 right-2">
-            <Badge tone="solid">4K</Badge>
-          </span>
-        )}
+        {tag && <TileTag>{tag}</TileTag>}
       </div>
-
-      {/* Hover panel */}
-      <div className="pointer-events-none absolute inset-x-0 top-full -mt-1 hidden rounded-b-md bg-neutral-900 p-3 opacity-0 shadow-2xl ring-1 ring-white/5 transition group-hover/card:pointer-events-auto group-hover/card:opacity-100 md:block">
-        <div className="flex items-center gap-2">
-          <button type="button" aria-label="Play" onClick={play} className="grid size-8 place-items-center rounded-full bg-white text-black hover:bg-white/80">
-            <PlayIcon size={14} />
-          </button>
-          <button
-            type="button"
-            aria-label={inList ? 'Remove from My List' : 'Add to My List'}
-            onClick={(e) => {
-              e.stopPropagation();
-              void toggleList();
-            }}
-            className="grid size-8 place-items-center rounded-full border-2 border-neutral-500 hover:border-white"
-          >
-            {inList ? <CheckIcon size={14} /> : <PlusIcon size={14} />}
-          </button>
-          {onRemove && (
-            <button
-              type="button"
-              aria-label="Remove from Continue Watching"
-              title="Remove from Continue Watching"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="grid size-8 place-items-center rounded-full border-2 border-neutral-500 hover:border-white"
-            >
-              <XIcon size={14} />
-            </button>
-          )}
-          <button
-            type="button"
-            aria-label="More info"
-            onClick={(e) => {
-              e.stopPropagation();
-              openTitle(card.id);
-            }}
-            className="ml-auto grid size-8 place-items-center rounded-full border-2 border-neutral-500 hover:border-white"
-          >
-            <ChevronDownIcon size={16} />
-          </button>
+      {card.progress !== undefined && card.progress > 0 && (
+        <div className="mt-[0.45em] h-[3px] overflow-hidden rounded-full bg-[#4d4d4d]">
+          <div className="h-full bg-brand" style={{ width: `${Math.max(3, card.progress * 100)}%` }} />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-neutral-300">
-          {card.rating ? <span className="font-semibold text-emerald-400">{Math.round(card.rating * 10)}% rating</span> : null}
-          {card.contentRating && <Badge>{card.contentRating}</Badge>}
-          <span>{meta}</span>
-          {card.resolution && <Badge>{card.resolution === '4K' ? 'UHD' : 'HD'}</Badge>}
-          {card.hdr && <Badge>{card.hdr}</Badge>}
-        </div>
-        {card.genres.length > 0 && <p className="mt-1.5 truncate text-xs text-neutral-400">{card.genres.slice(0, 3).join(' • ')}</p>}
-      </div>
+      )}
     </div>
   );
 }
 
-/** Horizontally scrolling row with arrow buttons. */
-export function CardRow({ title, children, count }: { title: ReactNode; children: ReactNode; count: number }) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const scroll = (dir: number) => {
-    const el = scroller.current;
-    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: 'smooth' });
+/** One horizontally paged row, Netflix style: N tiles per page with the next one peeking
+ *  into the gutter, arrow handles in the gutters, and page bars at the top right. */
+export function CardRow({ title, href, children, count }: { title: ReactNode; href?: string; children: ReactNode; count: number }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState({ page: 0, pages: 1, atStart: true, atEnd: true });
+
+  const pageWidth = (el: HTMLElement) => {
+    const style = getComputedStyle(el);
+    return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) + (parseFloat(style.columnGap) || 0);
   };
+
+  const measure = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    const perPage = Number(getComputedStyle(el).getPropertyValue('--row-items')) || 1;
+    const pages = Math.max(1, Math.ceil(count / perPage));
+    const max = el.scrollWidth - el.clientWidth;
+    const atStart = el.scrollLeft <= 2;
+    const atEnd = el.scrollLeft >= max - 2;
+    const page = atEnd ? pages - 1 : Math.min(pages - 1, Math.round(el.scrollLeft / pageWidth(el)));
+    setState((s) => (s.page === page && s.pages === pages && s.atStart === atStart && s.atEnd === atEnd ? s : { page, pages, atStart, atEnd }));
+  }, [count]);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    measure();
+    let frame = 0;
+    const onScroll = () => {
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          measure();
+        });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [measure]);
+
+  const go = (dir: 1 | -1) => {
+    const el = track.current;
+    if (el) el.scrollBy({ left: dir * pageWidth(el), behavior: 'smooth' });
+  };
+
+  const arrow = 'absolute inset-y-[6px] z-10 hidden w-(--gutter) items-center justify-center bg-[rgb(20_20_20/0.5)] text-white transition-[opacity,background-color] duration-300 hover:bg-[rgb(20_20_20/0.75)] can-hover:flex group/arrow';
+
   return (
-    <section className="group/row relative">
-      <h2 className="mb-2 px-4 text-lg font-bold text-neutral-100 sm:px-12 sm:text-xl">{title}</h2>
+    <section className="group/row relative" aria-label={typeof title === 'string' ? title : undefined}>
+      <div className="gutter-x mb-[0.55em] flex items-end justify-between gap-4">
+        <h2 className="row-title font-bold text-ink">
+          {href ? (
+            <Link to={href} className="group/hdr inline-flex items-baseline">
+              {title}
+              <span className="ml-[0.6em] inline-flex items-center self-center text-[0.62em] font-semibold whitespace-nowrap text-explore">
+                <span className="max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-700 ease-standard group-hover/hdr:max-w-[7em] group-hover/hdr:opacity-100 group-focus-visible/hdr:max-w-[7em] group-focus-visible/hdr:opacity-100">
+                  Explore All&nbsp;
+                </span>
+                <ChevronRightIcon size={16} className="opacity-0 transition-[opacity,transform] duration-300 group-hover/row:opacity-100 group-hover/hdr:translate-x-0.5 group-focus-visible/hdr:opacity-100" />
+              </span>
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
+        {state.pages > 1 && (
+          <ol aria-hidden="true" className="mb-[0.35em] hidden gap-[2px] opacity-0 transition-opacity duration-300 group-hover/row:opacity-100 can-hover:flex">
+            {Array.from({ length: state.pages }, (_, i) => (
+              <li key={i} className={`h-[2px] w-[12px] transition-colors duration-300 ${i === state.page ? 'bg-[#aaa]' : 'bg-[#4d4d4d]'}`} />
+            ))}
+          </ol>
+        )}
+      </div>
       <div className="relative">
-        <div ref={scroller} className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-4 px-4 pt-2 pb-28 -mb-24 sm:scroll-px-12 sm:px-12">
+        <div ref={track} className="tile-track no-scrollbar snap-x snap-mandatory overflow-x-auto overscroll-x-contain py-[6px] [&>*]:snap-start">
           {children}
         </div>
-        {count > 3 && (
+        {state.pages > 1 && (
           <>
             <button
               type="button"
-              aria-label="Scroll left"
-              onClick={() => scroll(-1)}
-              className="absolute top-2 bottom-4 left-0 z-20 hidden w-10 place-items-center bg-black/50 opacity-0 transition group-hover/row:opacity-100 hover:bg-black/70 sm:grid"
+              aria-label="Previous titles"
+              onClick={() => go(-1)}
+              className={`${arrow} left-0 rounded-r-[var(--tile-radius)] ${state.atStart ? 'pointer-events-none opacity-0' : ''}`}
             >
-              <ChevronLeftIcon size={32} />
+              <ChevronLeftIcon size={36} className="opacity-0 transition-[opacity,transform] duration-200 group-hover/row:opacity-100 group-hover/arrow:scale-125" />
             </button>
             <button
               type="button"
-              aria-label="Scroll right"
-              onClick={() => scroll(1)}
-              className="absolute top-2 right-0 bottom-4 z-20 hidden w-10 place-items-center bg-black/50 opacity-0 transition group-hover/row:opacity-100 hover:bg-black/70 sm:grid"
+              aria-label="More titles"
+              onClick={() => go(1)}
+              className={`${arrow} right-0 rounded-l-[var(--tile-radius)] ${state.atEnd ? 'pointer-events-none opacity-0' : ''}`}
             >
-              <ChevronRightIcon size={32} />
+              <ChevronRightIcon size={36} className="opacity-0 transition-[opacity,transform] duration-200 group-hover/row:opacity-100 group-hover/arrow:scale-125" />
             </button>
           </>
         )}
@@ -195,13 +187,46 @@ export function CardRow({ title, children, count }: { title: ReactNode; children
   );
 }
 
-export const rowItemClass = 'w-[44vw] shrink-0 snap-start sm:w-[30vw] md:w-[23vw] lg:w-[18.5vw] xl:w-[15.5vw]';
-
-export function CardGrid({ cards }: { cards: Card[] }) {
+/** Gallery grid (Movies, TV Shows, My List, Search): same tile sizes as the rows.
+ *  Tiles fade up in a short stagger as each page of results arrives. */
+export function CardGrid({ cards, pageSize = 60 }: { cards: Card[]; pageSize?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-10 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {cards.map((c) => (
-        <TitleCard key={c.id} card={c} />
+    <div className="tile-grid">
+      {cards.map((c, i) => (
+        <div key={c.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i % pageSize, 24) * 28}ms` }}>
+          <TitleCard card={c} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── loading skeletons ────────────────────────────────────────────────────────
+
+function SkeletonTile({ index }: { index: number }) {
+  return <div className="aspect-video rounded-[var(--tile-radius)] animate-skeleton" style={{ animationDelay: `${index * 140}ms` }} />;
+}
+
+export function RowSkeleton({ titleWidth = '11rem' }: { titleWidth?: string }) {
+  return (
+    <div aria-hidden="true">
+      <div className="gutter-x mb-[0.55em]">
+        <div className="row-title h-[1.1em] rounded animate-skeleton" style={{ width: titleWidth }} />
+      </div>
+      <div className="tile-track overflow-hidden py-[6px]">
+        {Array.from({ length: 7 }, (_, i) => (
+          <SkeletonTile key={i} index={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function GridSkeleton({ count = 12 }: { count?: number }) {
+  return (
+    <div className="tile-grid" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <SkeletonTile key={i} index={i % 6} />
       ))}
     </div>
   );

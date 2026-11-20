@@ -63,6 +63,49 @@ export function useInterval(callback: () => void, ms: number | null) {
   }, [ms]);
 }
 
+/** Live result of a CSS media query. */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
+/** Page scroll state: whether it is past `threshold`, and the last scroll direction. */
+export function useScrollState(threshold = 0) {
+  const [state, setState] = useState({ scrolled: false, down: false });
+  useEffect(() => {
+    let last = window.scrollY;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY;
+      // Ignore tiny moves so the direction doesn't flicker on trackpads.
+      const down = Math.abs(y - last) < 6 ? null : y > last;
+      last = y;
+      setState((s) => {
+        const next = { scrolled: y > threshold, down: down ?? s.down };
+        return next.scrolled === s.scrolled && next.down === s.down ? s : next;
+      });
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [threshold]);
+  return state;
+}
+
 /** Closes popovers on outside click / Escape. */
 export function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);

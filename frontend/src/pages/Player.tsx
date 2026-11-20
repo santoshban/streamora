@@ -1,6 +1,6 @@
 import Hls, { type ErrorData } from 'hls.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { watchUrl } from '../components/Cards';
+import { watchUrl } from '../components/titleActions';
 import {
   ArrowLeftIcon,
   Back10Icon,
@@ -278,11 +278,14 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
   }, []);
   const showControls = controls || !playing || panel !== 'none' || !!error;
 
+  // Netflix-style centre flash confirming play/pause and ±10s.
+  const [flash, setFlash] = useState<{ kind: 'play' | 'pause' | 'back' | 'forward'; key: number } | null>(null);
   const togglePlay = useCallback(() => {
     const el = video.current;
     if (!el) return;
     if (el.paused) void el.play().catch(() => undefined);
     else el.pause();
+    setFlash({ kind: el.paused ? 'pause' : 'play', key: performance.now() });
   }, []);
   const seekTo = useCallback((t: number) => {
     const el = video.current;
@@ -290,6 +293,15 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
     el.currentTime = Math.max(0, Math.min(t, (el.duration || duration) - 0.5));
     setEnded(false);
   }, [duration]);
+  const skip = useCallback(
+    (delta: number) => {
+      const el = video.current;
+      if (!el) return;
+      seekTo(el.currentTime + delta);
+      setFlash({ kind: delta < 0 ? 'back' : 'forward', key: performance.now() });
+    },
+    [seekTo],
+  );
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen();
     else void shell.current?.requestFullscreen?.().catch(() => undefined);
@@ -320,11 +332,11 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
           break;
         case 'ArrowLeft':
         case 'j':
-          seekTo(el.currentTime - 10);
+          skip(-10);
           break;
         case 'ArrowRight':
         case 'l':
-          seekTo(el.currentTime + 10);
+          skip(10);
           break;
         case 'ArrowUp':
           setVolume((v) => Math.min(1, Math.round((v + 0.1) * 10) / 10));
@@ -353,7 +365,7 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, seekTo, toggleFullscreen, goBack, panel, poke]);
+  }, [togglePlay, skip, toggleFullscreen, goBack, panel, poke]);
 
   // ── up next ────────────────────────────────────────────────────────────────
 
@@ -444,24 +456,44 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
       </video>
 
       {(starting || waiting) && !error && (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="pointer-events-none absolute inset-0 grid place-items-center animate-[fade-in_0.3s_ease-out_0.2s_backwards]">
           <Spinner size={64} className="text-brand" />
         </div>
       )}
 
+      {flash && !starting && (
+        <div key={flash.key} className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden="true">
+          <span
+            className={`grid size-[clamp(4.5rem,8vw,7rem)] place-items-center rounded-full bg-black/45 animate-flash ${
+              flash.kind === 'back' ? '-translate-x-[18vw]' : flash.kind === 'forward' ? 'translate-x-[18vw]' : ''
+            }`}
+          >
+            {flash.kind === 'play' && <PlayIcon size={44} />}
+            {flash.kind === 'pause' && <PauseIcon size={44} />}
+            {flash.kind === 'back' && <Back10Icon size={44} />}
+            {flash.kind === 'forward' && <Forward10Icon size={44} />}
+          </span>
+        </div>
+      )}
+
       {/* Top bar */}
-      <div className={`absolute inset-x-0 top-0 flex items-center gap-4 bg-gradient-to-b from-black/80 to-transparent p-4 transition-opacity duration-300 sm:p-6 ${showControls ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <button type="button" onClick={goBack} aria-label="Back" className="rounded-full p-2 hover:bg-white/10">
-          <ArrowLeftIcon size={28} />
+      <div
+        className={`absolute inset-x-0 top-0 flex items-center gap-4 bg-gradient-to-b from-black/80 to-transparent p-4 transition-[opacity,translate] duration-300 sm:p-6 ${
+          showControls ? 'opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
+        }`}
+      >
+        <button type="button" onClick={goBack} aria-label="Back to browse" className="rounded-full p-2 transition-transform duration-150 hover:scale-[1.3]">
+          <ArrowLeftIcon size={30} />
         </button>
-        <div className="min-w-0">
+        {/* Wide screens show the title in the control bar instead, like Netflix. */}
+        <div className="min-w-0 md:hidden">
           <p className="truncate text-lg font-bold">{title}</p>
           {subtitle && <p className="truncate text-sm text-neutral-300">{subtitle}</p>}
         </div>
       </div>
 
       {error && (
-        <div className="absolute inset-0 grid place-items-center bg-black/80 p-6">
+        <div className="absolute inset-0 grid place-items-center bg-black/80 p-6 animate-fade-in">
           <div className="max-w-md space-y-4 text-center">
             <p className="text-xl font-semibold">Something went wrong</p>
             <p className="text-sm whitespace-pre-line text-neutral-300">{error}</p>
@@ -478,8 +510,8 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
       )}
 
       {ended && !ctx?.next && !error && (
-        <div className="absolute inset-0 grid place-items-center bg-black/70">
-          <div className="space-y-4 text-center">
+        <div className="absolute inset-0 grid place-items-center bg-black/70 animate-fade-in">
+          <div className="space-y-4 text-center animate-fade-up">
             <p className="text-2xl font-bold">{title}</p>
             <div className="flex justify-center gap-3">
               <Button variant="primary" onClick={() => seekTo(0)}>
@@ -494,7 +526,7 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
       )}
 
       {showUpNext && ctx?.next && !error && (
-        <div className="absolute right-4 bottom-28 w-80 overflow-hidden rounded-lg bg-neutral-900/95 shadow-2xl ring-1 ring-white/15 sm:right-10">
+        <div className="absolute right-4 bottom-28 w-80 overflow-hidden rounded-[4px] bg-panel/95 shadow-2xl ring-1 ring-white/15 animate-slide-in-right sm:right-10">
           <div className="space-y-1 p-4">
             <p className="text-xs font-semibold tracking-wider text-neutral-400 uppercase">Next episode</p>
             <p className="font-semibold">
@@ -514,19 +546,26 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
 
       {/* Bottom controls */}
       <div
-        className={`absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-opacity duration-300 sm:px-8 sm:pb-6 ${
-          showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+        className={`absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-16 pb-4 transition-[opacity,translate] duration-300 sm:px-8 sm:pb-6 ${
+          showControls ? 'opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
         }`}
       >
-        <SeekBar time={time} duration={duration} buffered={buffered} onSeek={seekTo} />
-        <div className="flex items-center gap-1 sm:gap-3">
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <SeekBar time={time} duration={duration} buffered={buffered} onSeek={seekTo} />
+          </div>
+          <span className="shrink-0 text-sm text-ink tabular-nums" title="Time remaining">
+            {formatClock(Math.max(0, duration - time))}
+          </span>
+        </div>
+        <div className="relative flex items-center gap-1 sm:gap-3">
           <ControlButton label={playing ? 'Pause (space)' : 'Play (space)'} onClick={togglePlay}>
-            {playing ? <PauseIcon size={30} /> : <PlayIcon size={30} />}
+            {playing ? <PauseIcon key="pause" size={30} className="animate-icon-pop" /> : <PlayIcon key="play" size={30} className="animate-icon-pop" />}
           </ControlButton>
-          <ControlButton label="Back 10 seconds (←)" onClick={() => seekTo(time - 10)}>
+          <ControlButton label="Back 10 seconds (←)" onClick={() => skip(-10)}>
             <Back10Icon size={28} />
           </ControlButton>
-          <ControlButton label="Forward 10 seconds (→)" onClick={() => seekTo(time + 10)}>
+          <ControlButton label="Forward 10 seconds (→)" onClick={() => skip(10)}>
             <Forward10Icon size={28} />
           </ControlButton>
           <div className="group/vol flex items-center">
@@ -547,9 +586,14 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
               className="range-slim w-0 opacity-0 transition-all duration-200 group-hover/vol:w-24 group-hover/vol:opacity-100 focus:w-24 focus:opacity-100"
             />
           </div>
-          <span className="ml-1 text-sm text-neutral-200 tabular-nums">
+          <span className="ml-1 text-sm text-neutral-200 tabular-nums lg:hidden">
             {formatClock(time)} <span className="text-neutral-500">/ {formatClock(duration)}</span>
           </span>
+          {/* Title centred between the control groups (Netflix). */}
+          <p className="pointer-events-none absolute left-1/2 hidden max-w-[38%] -translate-x-1/2 truncate text-center text-[clamp(1rem,1.3vw,1.4rem)] md:block">
+            <span className="font-bold">{title}</span>
+            {ctx?.episode && <span className="ml-2.5 text-soft">{subtitle}</span>}
+          </p>
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
             {ctx?.next && (
               <ControlButton label="Next episode" onClick={playNext}>
@@ -561,7 +605,7 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
                 <SubtitlesIcon size={28} />
               </ControlButton>
               {panel === 'tracks' && plan && (
-                <div className="absolute right-0 bottom-14 grid w-[min(90vw,34rem)] grid-cols-2 gap-6 rounded-md bg-neutral-900/95 p-5 shadow-2xl ring-1 ring-white/10">
+                <div className="absolute right-0 bottom-14 grid w-[min(90vw,34rem)] grid-cols-2 gap-6 rounded-[4px] bg-panel/95 p-5 shadow-2xl ring-1 ring-white/10 animate-[fade-up_0.25s_var(--ease-out-expo)_backwards]">
                   <div>
                     <p className="mb-3 text-lg font-bold">Audio</p>
                     <ul className="max-h-64 space-y-1 overflow-y-auto">
@@ -596,7 +640,7 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
                 <GearIcon size={26} />
               </ControlButton>
               {panel === 'settings' && plan && (
-                <div className="absolute right-0 bottom-14 w-72 space-y-4 rounded-md bg-neutral-900/95 p-5 shadow-2xl ring-1 ring-white/10">
+                <div className="absolute right-0 bottom-14 w-72 space-y-4 rounded-[4px] bg-panel/95 p-5 shadow-2xl ring-1 ring-white/10 animate-[fade-up_0.25s_var(--ease-out-expo)_backwards]">
                   <div>
                     <p className="mb-2 font-bold">Quality</p>
                     <ul className="space-y-1">
@@ -650,7 +694,7 @@ export default function PlayerPage({ fileId }: { fileId: number }) {
 
 function ControlButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className="rounded-full p-2 text-white transition hover:scale-110 hover:bg-white/10">
+    <button type="button" aria-label={label} title={label} onClick={onClick} className="rounded-full p-2 text-white transition-transform duration-150 ease-out hover:scale-[1.3] active:scale-110">
       {children}
     </button>
   );
@@ -712,10 +756,10 @@ function SeekBar({ time, duration, buffered, onSeek }: { time: number; duration:
       <div className="relative h-1 w-full rounded-full bg-white/25 transition-all group-hover/seek:h-1.5">
         <div className="absolute inset-y-0 left-0 rounded-full bg-white/40" style={{ width: pct(buffered) }} />
         <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: pct(shown) }} />
-        <div className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 scale-0 rounded-full bg-brand transition group-hover/seek:scale-100" style={{ left: pct(shown) }} />
+        <div className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 scale-[0.85] rounded-full bg-brand shadow transition-[scale] duration-150 group-hover/seek:scale-[1.25]" style={{ left: pct(shown) }} />
       </div>
       {hover !== null && (
-        <span className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded bg-black/80 px-2 py-1 text-xs tabular-nums" style={{ left: pct(hover) }}>
+        <span className="pointer-events-none absolute -top-9 -translate-x-1/2 rounded-[3px] bg-[#e6e6e6] px-2 py-1 text-xs font-semibold text-[#181818] tabular-nums shadow-lg animate-fade-in" style={{ left: pct(hover) }}>
           {formatClock(hover)}
         </span>
       )}

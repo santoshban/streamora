@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Logo } from './components/Brand';
 import { TitleModalHost } from './components/DetailModal';
 import { Nav } from './components/Nav';
+import { PreviewProvider } from './components/Preview';
 import { Button, Spinner, ToastProvider } from './components/ui';
 import { ServerEventsProvider } from './lib/events';
 import { matchPath, RouterProvider, useRouter } from './lib/router';
@@ -45,11 +46,14 @@ function Routes() {
   else page = <NotFound />;
 
   return (
-    <>
+    <PreviewProvider>
       <Nav />
-      <main className="min-h-screen">{page}</main>
+      {/* Keyed by path so every page change fades in. */}
+      <main key={path} className="min-h-screen animate-fade-in">
+        {page}
+      </main>
       <TitleModalHost />
-    </>
+    </PreviewProvider>
   );
 }
 

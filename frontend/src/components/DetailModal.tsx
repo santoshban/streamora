@@ -1,21 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errorText, qs } from '../lib/api';
 import { useServerEvents } from '../lib/events';
 import { formatBytes, formatRuntime } from '../lib/format';
 import { useAsync } from '../lib/hooks';
+import { getModalOrigin } from '../lib/motion';
+import { setTrailersMuted, useAutoplayPreviews, useTrailer, useTrailersMuted } from '../lib/trailers';
 import { useRouter } from '../lib/router';
-import type { EpisodeEntry, ItemDetail, SearchCandidate } from '../lib/types';
+import type { Card, EpisodeEntry, ItemDetail, SearchCandidate } from '../lib/types';
 import { useSession } from '../state/session';
 import { TmdbCredit } from './Brand';
-import { resetTitleOpened, titleOpenedInApp, useListToggle, useOpenTitle, watchUrl } from './Cards';
-import { CheckIcon, LockIcon, PlayIcon, PlusIcon, RefreshIcon, SearchIcon } from './Icons';
-import { Badge, Button, ErrorNote, IconButton, inputBase, inputClass, Modal, Spinner, useToast } from './ui';
+import { CheckIcon, ChevronDownIcon, LockIcon, PlayIcon, PlusIcon, RefreshIcon, SearchIcon } from './Icons';
+import { ratingPercent, resetTitleOpened, titleOpenedInApp, useListToggle, useOpenTitle } from './titleActions';
+import { TrailerButton, TrailerVideo } from './TrailerVideo';
+import { Badge, Button, Dropdown, ErrorNote, IconButton, inputBase, inputClass, Modal, Spinner, useToast } from './ui';
 
-/** Renders the detail modal when the URL has `?title=<id>`. */
+/** Horizontal padding inside the modal (Netflix uses 3em). */
+const PAD = 'px-[clamp(1.25rem,5.5%,3rem)]';
+/** "More Like This" shows this many until expanded. */
+const SIMILAR_COLLAPSED = 6;
+
+/** Renders the detail modal when the URL has `?title=<id>`, and keeps it mounted while
+ *  it animates out after the parameter goes away (close button, Escape or Back). */
 export function TitleModalHost() {
   const { query, setQuery } = useRouter();
-  const id = Number(query.get('title'));
-  if (!id) return null;
+  const id = Number(query.get('title')) || 0;
+  const [shown, setShown] = useState(id);
+  if (id && id !== shown) setShown(id);
+  if (!shown) return null;
+
   const close = () => {
     if (titleOpenedInApp) {
       resetTitleOpened();
@@ -24,23 +36,28 @@ export function TitleModalHost() {
       setQuery({ title: null }, { replace: true });
     }
   };
-  return <DetailModal key={id} id={id} onClose={close} />;
+  return <DetailModal key={shown} id={shown} onClose={close} exiting={!id} onExited={() => setShown(0)} />;
 }
 
-function DetailModal({ id, onClose }: { id: number; onClose: () => void }) {
+function DetailModal({ id, onClose, exiting, onExited }: { id: number; onClose: () => void; exiting: boolean; onExited: () => void }) {
   const detail = useAsync((signal) => api.get<{ item: ItemDetail }>(`/api/catalog/items/${id}`, { signal }), [id]);
   useServerEvents(['metadata.updated'], (_t, data) => {
     if (data.mediaItemId === id) detail.reload();
   });
+  // Read once: the tile/preview this modal zooms out of.
+  const [origin] = useState(getModalOrigin);
   const item = detail.data?.item;
 
   return (
-    <Modal onClose={onClose} label={item?.title ?? 'Title details'} className="max-w-5xl">
-      {detail.loading && !item && (
-        <div className="grid h-96 place-items-center">
-          <Spinner />
-        </div>
-      )}
+    <Modal
+      onClose={onClose}
+      label={item?.title ?? 'Title details'}
+      className="max-w-[min(58rem,calc(100vw-1.5rem))]"
+      origin={origin}
+      exiting={exiting}
+      onExited={onExited}
+    >
+      {detail.loading && !item && <DetailSkeleton />}
       {detail.error ? (
         <div className="p-8">
           <ErrorNote error={detail.error} onRetry={detail.reload} />
@@ -51,14 +68,48 @@ function DetailModal({ id, onClose }: { id: number; onClose: () => void }) {
   );
 }
 
+function DetailSkeleton() {
+  return (
+    <div aria-label="Loading">
+      <div className="aspect-video w-full animate-skeleton" />
+      <div className={`${PAD} space-y-3 py-8`}>
+        <div className="h-4 w-1/3 rounded animate-skeleton" />
+        <div className="h-4 w-2/3 rounded animate-skeleton" style={{ animationDelay: '150ms' }} />
+        <div className="h-4 w-1/2 rounded animate-skeleton" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+  );
+}
+
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="inline text-[#777]">{label}: </dt>
+      <dd className="inline text-ink">{children}</dd>
+    </div>
+  );
+}
+
 function DetailBody({ item, reload }: { item: ItemDetail; reload: () => void }) {
   const { navigate } = useRouter();
   const { profile } = useSession();
   const toast = useToast();
   const [inList, toggleList] = useListToggle(item.inList, item.id);
+  const [listTouched, setListTouched] = useState(false);
   const [versionId, setVersionId] = useState<number | null>(item.target?.fileId ?? item.versions[0]?.id ?? null);
   const [fixing, setFixing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  // Netflix plays the trailer in the modal header too (muted, after a moment).
+  const trailer = useTrailer(item.id, useAutoplayPreviews());
+  const muted = useTrailersMuted();
+  const [phase, setPhase] = useState<'waiting' | 'loading' | 'playing' | 'ended' | 'failed'>('waiting');
+  useEffect(() => {
+    if (!trailer) return;
+    const timer = setTimeout(() => setPhase((p) => (p === 'waiting' ? 'loading' : p)), 1200);
+    return () => clearTimeout(timer);
+  }, [trailer]);
+  const about = useRef<HTMLElement>(null);
   const target = item.target;
 
   const play = (fromStart = false) => {
@@ -78,26 +129,50 @@ function DetailBody({ item, reload }: { item: ItemDetail; reload: () => void }) 
   };
 
   const directors = item.crew.filter((c) => c.job === 'Director' || c.job === 'Creator');
-  const writers = item.crew.filter((c) => ['Writer', 'Screenplay', 'Novel'].includes(c.job));
+  const writers = [...new Set(item.crew.filter((c) => ['Writer', 'Screenplay', 'Novel'].includes(c.job)).map((c) => c.name))];
   const seasonCount = item.seasons.filter((s) => s.seasonNumber > 0).length;
+  const castNames = item.cast.map((c) => c.name);
 
   return (
     <>
-      <div className="relative aspect-video max-h-[60vh] w-full overflow-hidden bg-neutral-800">
-        {item.backdrop && <img src={item.backdrop} alt="" className="size-full object-cover" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/20 to-transparent" />
-        <div className="absolute bottom-6 left-6 right-6 space-y-4 sm:bottom-10 sm:left-12">
-          {item.logo ? (
-            <img src={item.logo} alt={item.title} className="max-h-28 max-w-[60%] object-contain object-left drop-shadow-2xl" />
-          ) : (
-            <h2 className="text-3xl font-black drop-shadow-lg sm:text-5xl">{item.title}</h2>
+      {/* Artwork with the title, buttons and progress over its lower edge. */}
+      <div className="relative">
+        <div className="relative aspect-video w-full overflow-hidden bg-raised">
+          {item.backdrop && (
+            <img
+              src={item.backdrop}
+              alt=""
+              onLoad={() => setLoaded(true)}
+              className={`size-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            />
           )}
-          <div className="flex flex-wrap items-center gap-2">
+          {trailer && (phase === 'loading' || phase === 'playing') && (
+            <TrailerVideo
+              videoKey={trailer.key}
+              muted={muted}
+              playing
+              visible={phase === 'playing'}
+              onStart={() => setPhase('playing')}
+              onEnd={() => setPhase('ended')}
+              onFail={() => setPhase('failed')}
+            />
+          )}
+          <div className="absolute inset-0 bg-[linear-gradient(0deg,#181818_0%,rgb(24_24_24/0.6)_22%,transparent_55%)]" />
+        </div>
+        <div className={`absolute inset-x-0 bottom-[6%] ${PAD} space-y-[clamp(0.75rem,2vw,1.4rem)]`}>
+          <div className="w-[min(46%,24rem)] animate-[fade-up_0.6s_var(--ease-out-expo)_80ms_backwards]">
+            {item.logo ? (
+              <img src={item.logo} alt={item.title} className="max-h-[clamp(3rem,13vw,8rem)] max-w-full object-contain object-left-bottom drop-shadow-2xl" />
+            ) : (
+              <h2 className="text-[clamp(1.6rem,4.4vw,3rem)] leading-none font-black drop-shadow-lg">{item.title}</h2>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 animate-[fade-up_0.6s_var(--ease-out-expo)_160ms_backwards]">
             {target && (
-              <Button variant="primary" size="lg" onClick={() => play()}>
-                <PlayIcon size={22} />
+              <Button variant="primary" size="lg" onClick={() => play()} className="pr-7 pl-5">
+                <PlayIcon size={24} />
                 {target.resume ? 'Resume' : 'Play'}
-                {target.episodeLabel && <span className="font-normal">{target.episodeLabel}</span>}
+                {target.episodeLabel && <span className="font-normal opacity-80">{target.episodeLabel}</span>}
               </Button>
             )}
             {target?.resume && (
@@ -105,34 +180,53 @@ function DetailBody({ item, reload }: { item: ItemDetail; reload: () => void }) 
                 Start over
               </Button>
             )}
-            <IconButton label={inList ? 'Remove from My List' : 'Add to My List'} onClick={() => void toggleList()}>
-              {inList ? <CheckIcon /> : <PlusIcon />}
+            <IconButton
+              size="lg"
+              label={inList ? 'Remove from My List' : 'Add to My List'}
+              onClick={() => {
+                setListTouched(true);
+                void toggleList();
+              }}
+            >
+              {inList ? (
+                <CheckIcon key="in" className={listTouched ? 'animate-icon-pop' : ''} />
+              ) : (
+                <PlusIcon key="out" className={listTouched ? 'animate-icon-pop' : ''} />
+              )}
             </IconButton>
             <IconButton
+              size="lg"
               label={item.watched ? 'Mark as unwatched' : 'Mark as watched'}
               onClick={() => void setWatched(!item.watched)}
-              className={item.watched ? 'border-emerald-400 text-emerald-300' : ''}
+              className={item.watched ? 'border-match! text-match' : ''}
             >
-              <CheckIcon />
+              <CheckIcon key={String(item.watched)} className="animate-icon-pop" />
             </IconButton>
+            {(phase === 'loading' || phase === 'playing' || phase === 'ended') && (
+              <TrailerButton
+                mode={phase === 'ended' ? 'replay' : muted ? 'muted' : 'unmuted'}
+                onClick={() => (phase === 'ended' ? setPhase('loading') : setTrailersMuted(!muted))}
+                className="ml-auto"
+              />
+            )}
           </div>
           {target?.resume && target.durationSeconds ? (
-            <div className="flex max-w-sm items-center gap-3 text-xs text-neutral-300">
-              <div className="h-1 flex-1 overflow-hidden rounded bg-neutral-600">
+            <div className="flex max-w-sm items-center gap-3 text-sm text-soft animate-[fade-in_0.4s_ease-out_240ms_backwards]">
+              <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-[#4d4d4d]">
                 <div className="h-full bg-brand" style={{ width: `${(target.positionSeconds / target.durationSeconds) * 100}%` }} />
               </div>
-              {Math.max(1, Math.round((target.durationSeconds - target.positionSeconds) / 60))} min left
+              {Math.max(1, Math.round((target.durationSeconds - target.positionSeconds) / 60))}m left
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="grid gap-8 px-6 pt-2 pb-8 sm:px-12 md:grid-cols-[2fr_1fr]">
+      {/* Overview and quick credits. */}
+      <div className={`grid gap-x-8 gap-y-4 ${PAD} pt-1 pb-8 text-[14px] md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] animate-fade-in`}>
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-300">
-            {item.rating ? <span className="font-semibold text-emerald-400">{Math.round(item.rating * 10)}% rating</span> : null}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 font-medium text-soft">
+            {ratingPercent(item.rating) && <span className="font-semibold text-match">{ratingPercent(item.rating)}</span>}
             {item.year && <span>{item.year}</span>}
-            {item.contentRating && <Badge>{item.contentRating}</Badge>}
             {item.kind === 'movie' ? (
               formatRuntime(item.runtimeMinutes) && <span>{formatRuntime(item.runtimeMinutes)}</span>
             ) : (
@@ -141,12 +235,18 @@ function DetailBody({ item, reload }: { item: ItemDetail; reload: () => void }) 
             {item.resolution && <Badge>{item.resolution === '4K' ? 'UHD' : item.resolution}</Badge>}
             {item.hdr && <Badge>{item.hdr}</Badge>}
           </div>
-          {item.tagline && <p className="font-medium text-neutral-200 italic">{item.tagline}</p>}
-          <p className="leading-relaxed text-neutral-100">{item.overview ?? 'No description available yet.'}</p>
+          {item.contentRating && (
+            <div className="flex items-center gap-2 text-ink">
+              <Badge>{item.contentRating}</Badge>
+              {item.genres.length > 0 && <span className="text-soft">{item.genres.slice(0, 3).join(', ')}</span>}
+            </div>
+          )}
+          {item.tagline && <p className="font-medium text-ink italic">{item.tagline}</p>}
+          <p className="text-[clamp(14px,1.1vw,16px)] leading-relaxed text-white">{item.overview ?? 'No description available yet.'}</p>
 
           {item.kind === 'movie' && item.versions.length > 1 && (
             <label className="flex items-center gap-3 text-sm">
-              <span className="text-neutral-400">Version</span>
+              <span className="text-[#777]">Version</span>
               <select className={`${inputBase} w-auto`} value={versionId ?? ''} onChange={(e) => setVersionId(Number(e.target.value))}>
                 {item.versions.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -157,65 +257,64 @@ function DetailBody({ item, reload }: { item: ItemDetail; reload: () => void }) 
             </label>
           )}
         </div>
-        <dl className="space-y-3 text-sm">
-          {item.cast.length > 0 && (
-            <div>
-              <dt className="inline text-neutral-500">Cast: </dt>
-              <dd className="inline text-neutral-200">{item.cast.slice(0, 6).map((c) => c.name).join(', ')}</dd>
-            </div>
+        <dl className="space-y-2.5 leading-snug">
+          {castNames.length > 0 && (
+            <Meta label="Cast">
+              {castNames.slice(0, 3).join(', ')}
+              {castNames.length > 3 && (
+                <>
+                  ,{' '}
+                  <button type="button" onClick={() => about.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="italic hover:underline">
+                    more
+                  </button>
+                </>
+              )}
+            </Meta>
           )}
-          {item.genres.length > 0 && (
-            <div>
-              <dt className="inline text-neutral-500">Genres: </dt>
-              <dd className="inline text-neutral-200">{item.genres.join(', ')}</dd>
-            </div>
-          )}
-          {directors.length > 0 && (
-            <div>
-              <dt className="inline text-neutral-500">{item.kind === 'show' ? 'Created by' : 'Director'}: </dt>
-              <dd className="inline text-neutral-200">{directors.map((d) => d.name).join(', ')}</dd>
-            </div>
-          )}
-          {writers.length > 0 && (
-            <div>
-              <dt className="inline text-neutral-500">Writers: </dt>
-              <dd className="inline text-neutral-200">{[...new Set(writers.map((d) => d.name))].join(', ')}</dd>
-            </div>
-          )}
-          {item.studios.length > 0 && (
-            <div>
-              <dt className="inline text-neutral-500">{item.kind === 'show' ? 'Network' : 'Studio'}: </dt>
-              <dd className="inline text-neutral-200">{item.studios.slice(0, 3).join(', ')}</dd>
-            </div>
-          )}
+          {item.genres.length > 0 && <Meta label="Genres">{item.genres.join(', ')}</Meta>}
+          {directors.length > 0 && <Meta label={item.kind === 'show' ? 'Created by' : 'Director'}>{directors.map((d) => d.name).join(', ')}</Meta>}
         </dl>
       </div>
 
       {item.kind === 'show' && item.seasons.length > 0 && <Episodes item={item} onChanged={reload} />}
+      {item.similar.length > 0 && <MoreLikeThis items={item.similar} />}
 
-      {item.cast.some((c) => c.photo) && (
-        <section className="px-6 pb-8 sm:px-12">
-          <h3 className="mb-4 text-xl font-bold">Cast</h3>
-          <ul className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
+      {/* About: the full credits, like the bottom of Netflix's modal. */}
+      <section ref={about} className={`${PAD} scroll-mt-6 pb-8`}>
+        <h3 className="mb-4 text-[clamp(1.25rem,2vw,1.6rem)]">
+          About <strong className="font-bold">{item.title}</strong>
+        </h3>
+        <dl className="space-y-2 text-[14px] leading-snug">
+          {directors.length > 0 && <Meta label={item.kind === 'show' ? 'Creators' : 'Director'}>{directors.map((d) => d.name).join(', ')}</Meta>}
+          {castNames.length > 0 && <Meta label="Cast">{castNames.slice(0, 15).join(', ')}</Meta>}
+          {writers.length > 0 && <Meta label="Writers">{writers.join(', ')}</Meta>}
+          {item.genres.length > 0 && <Meta label="Genres">{item.genres.join(', ')}</Meta>}
+          {item.studios.length > 0 && <Meta label={item.kind === 'show' ? 'Network' : 'Studio'}>{item.studios.slice(0, 3).join(', ')}</Meta>}
+          {item.contentRating && (
+            <Meta label="Maturity rating">
+              <Badge>{item.contentRating}</Badge>
+            </Meta>
+          )}
+        </dl>
+        {item.cast.some((c) => c.photo) && (
+          <ul className="no-scrollbar mt-6 flex gap-4 overflow-x-auto pb-2">
             {item.cast.slice(0, 15).map((c, i) => (
-              <li key={`${c.name}-${i}`} className="w-24 shrink-0 text-center">
-                <div className="mx-auto mb-2 size-20 overflow-hidden rounded-full bg-neutral-800">
+              <li key={`${c.name}-${i}`} className="w-20 shrink-0 text-center">
+                <div className="mx-auto mb-2 size-16 overflow-hidden rounded-full bg-raised ring-1 ring-white/10">
                   {c.photo && <img src={c.photo} alt="" loading="lazy" className="size-full object-cover" />}
                 </div>
-                <p className="text-xs font-semibold">{c.name}</p>
-                {c.character && <p className="text-xs text-neutral-500">{c.character}</p>}
+                <p className="text-xs leading-tight font-semibold">{c.name}</p>
+                {c.character && <p className="mt-0.5 text-[11px] leading-tight text-muted">{c.character}</p>}
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
-      {item.similar.length > 0 && <MoreLikeThis items={item.similar} />}
-
-      <footer className="space-y-3 border-t border-white/10 px-6 py-6 sm:px-12">
+      <footer className={`space-y-3 border-t border-white/10 ${PAD} py-6`}>
         {profile?.isAdmin && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="mr-2 text-neutral-400">
+            <span className="mr-2 text-muted">
               {item.library?.name} · matched by {item.metadataSources.length ? item.metadataSources.join(', ') : 'nobody yet'}
               {item.externalIds.tmdb && ` · TMDB ${item.externalIds.tmdb}`}
             </span>
@@ -277,6 +376,7 @@ function Episodes({ item, onChanged }: { item: ItemDetail; onChanged: () => void
     (signal) => api.get<{ episodes: EpisodeEntry[] }>(`/api/catalog/items/${item.id}/seasons/${season}`, { signal }),
     [item.id, season],
   );
+  const current = item.target?.episodeId ?? null;
 
   const toggleWatched = async (e: EpisodeEntry) => {
     try {
@@ -287,63 +387,86 @@ function Episodes({ item, onChanged }: { item: ItemDetail; onChanged: () => void
       toast(errorText(err), 'error');
     }
   };
+  const seasonLabel = (s: ItemDetail['seasons'][number]) => s.title ?? (s.seasonNumber === 0 ? 'Specials' : `Season ${s.seasonNumber}`);
 
   return (
-    <section className="px-6 pb-8 sm:px-12">
+    <section className={`${PAD} pb-10`}>
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h3 className="text-xl font-bold">Episodes</h3>
+        <h3 className="text-[clamp(1.25rem,2vw,1.6rem)] font-bold">Episodes</h3>
         {item.seasons.length > 1 ? (
-          <select className={`${inputBase} w-auto font-semibold`} value={season} onChange={(e) => setSeason(Number(e.target.value))}>
-            {item.seasons.map((s) => (
-              <option key={s.seasonNumber} value={s.seasonNumber}>
-                {s.title} ({s.episodeCount})
-              </option>
-            ))}
-          </select>
+          <Dropdown
+            label="Season"
+            value={season}
+            onChange={setSeason}
+            align="right"
+            buttonClassName="border-[#4d4d4d]! bg-[#242424]! px-4! py-2! text-base! sm:text-lg!"
+            options={item.seasons.map((s) => ({ value: s.seasonNumber, label: seasonLabel(s), detail: `${s.episodeCount} Episodes` }))}
+          />
         ) : (
-          <span className="text-neutral-300">{item.seasons[0]!.title}</span>
+          <span className="text-lg font-semibold text-ink">{seasonLabel(item.seasons[0]!)}</span>
         )}
       </div>
-      {episodes.loading && !episodes.data && <Spinner />}
+      {episodes.loading && !episodes.data && (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-24 rounded animate-skeleton" style={{ animationDelay: `${i * 150}ms` }} />
+          ))}
+        </div>
+      )}
       {episodes.error ? <ErrorNote error={episodes.error} onRetry={episodes.reload} /> : null}
-      <ol className="divide-y divide-white/10 border-y border-white/10">
-        {episodes.data?.episodes.map((e) => (
-          <li key={e.id} className="group flex items-start gap-4 py-4">
-            <span className="hidden w-6 shrink-0 pt-6 text-center text-xl text-neutral-400 sm:block">{e.episodeNumber}</span>
+      <ol>
+        {episodes.data?.episodes.map((e, i) => (
+          <li
+            key={e.id}
+            onClick={() => navigate(`/watch/${e.fileId}?t=${Math.floor(e.positionSeconds)}`)}
+            className={`group/ep flex cursor-pointer items-center gap-3 rounded-[0.25em] border-b border-[#404040] px-2 py-4 transition-colors duration-200 hover:bg-hover sm:gap-4 sm:px-6 sm:py-6 animate-fade-up ${
+              e.id === current ? 'bg-hover' : ''
+            }`}
+            style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+          >
+            <span className="hidden w-[7%] shrink-0 text-center text-2xl text-[#d2d2d2] sm:block">{e.episodeNumber}</span>
             <button
               type="button"
-              onClick={() => navigate(`/watch/${e.fileId}?t=${Math.floor(e.positionSeconds)}`)}
-              className="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-neutral-800 sm:w-40"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                navigate(`/watch/${e.fileId}?t=${Math.floor(e.positionSeconds)}`);
+              }}
+              className="relative aspect-video w-[34%] shrink-0 overflow-hidden rounded-[0.25em] bg-raised sm:w-[22%]"
               aria-label={`Play ${e.label} ${e.title}`}
             >
               {e.still && <img src={e.still} alt="" loading="lazy" className="size-full object-cover" />}
-              <span className="absolute inset-0 grid place-items-center bg-black/30 opacity-0 transition group-hover:opacity-100">
-                <span className="grid size-10 place-items-center rounded-full border-2 border-white bg-black/50">
+              <span className="absolute inset-0 grid place-items-center bg-black/30 opacity-0 transition-opacity duration-300 group-hover/ep:opacity-100 group-focus-within/ep:opacity-100">
+                <span className="grid size-10 scale-75 place-items-center rounded-full border border-white bg-black/50 transition-transform duration-300 ease-out-expo group-hover/ep:scale-100">
                   <PlayIcon size={18} />
                 </span>
               </span>
               {e.progress > 0 && (
-                <span className="absolute inset-x-1 bottom-1 h-1 overflow-hidden rounded bg-neutral-600">
+                <span className="absolute inset-x-0 bottom-0 h-1 bg-[#4d4d4d]">
                   <span className="block h-full bg-brand" style={{ width: `${e.progress * 100}%` }} />
                 </span>
               )}
             </button>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 self-start pt-1 sm:self-center sm:pt-0">
               <div className="flex items-start justify-between gap-3">
-                <p className="font-semibold">
-                  <span className="text-neutral-400 sm:hidden">{e.episodeNumber}. </span>
+                <p className="font-bold text-ink">
+                  <span className="text-soft sm:hidden">{e.episodeNumber}. </span>
                   {e.title}
                 </p>
-                <span className="shrink-0 text-sm text-neutral-400">{formatRuntime(e.runtimeMinutes)}</span>
+                <span className="shrink-0 text-sm text-ink">{formatRuntime(e.runtimeMinutes)}</span>
               </div>
-              {e.overview && <p className="mt-1 line-clamp-3 text-sm text-neutral-400">{e.overview}</p>}
+              {e.overview && <p className="mt-1.5 line-clamp-3 text-sm leading-snug text-[#d2d2d2]">{e.overview}</p>}
             </div>
             <button
               type="button"
-              onClick={() => void toggleWatched(e)}
-              title={e.watched ? 'Mark as unwatched' : 'Mark as watched'}
+              onClick={(ev) => {
+                ev.stopPropagation();
+                void toggleWatched(e);
+              }}
+              data-tip={e.watched ? 'Mark as unwatched' : 'Mark as watched'}
               aria-label={e.watched ? 'Mark as unwatched' : 'Mark as watched'}
-              className={`mt-5 grid size-7 shrink-0 place-items-center rounded-full border ${e.watched ? 'border-emerald-400 text-emerald-300' : 'border-neutral-600 text-neutral-600 hover:text-neutral-300'}`}
+              className={`tip grid size-8 shrink-0 place-items-center rounded-full border-2 transition-colors ${
+                e.watched ? 'border-match text-match' : 'border-white/30 text-white/40 hover:border-white hover:text-white'
+              }`}
             >
               <CheckIcon size={14} />
             </button>
@@ -354,29 +477,92 @@ function Episodes({ item, onChanged }: { item: ItemDetail; onChanged: () => void
   );
 }
 
-function MoreLikeThis({ items }: { items: ItemDetail['similar'] }) {
-  const openTitle = useOpenTitle();
+function MoreLikeThis({ items }: { items: Card[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const section = useRef<HTMLElement>(null);
+  const shown = expanded ? items : items.slice(0, SIMILAR_COLLAPSED);
+  const canExpand = items.length > SIMILAR_COLLAPSED;
   return (
-    <section className="px-6 pb-8 sm:px-12">
-      <h3 className="mb-4 text-xl font-bold">More Like This</h3>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((c) => (
-          <button key={c.id} type="button" onClick={() => openTitle(c.id)} className="overflow-hidden rounded-md bg-neutral-800 text-left transition hover:bg-neutral-700">
-            <div className="relative aspect-video bg-neutral-700">
-              {(c.backdrop ?? c.poster) && <img src={c.backdrop ?? c.poster!} alt="" loading="lazy" className="size-full object-cover" />}
-            </div>
-            <div className="space-y-1 p-3">
-              <p className="truncate font-semibold">{c.title}</p>
-              <p className="flex items-center gap-2 text-xs text-neutral-400">
-                {c.contentRating && <Badge>{c.contentRating}</Badge>}
-                {c.year}
-              </p>
-              {c.overview && <p className="line-clamp-3 text-xs text-neutral-400">{c.overview}</p>}
-            </div>
-          </button>
-        ))}
+    <section ref={section} className={`${PAD} pb-10`}>
+      <h3 className="mb-4 text-[clamp(1.25rem,2vw,1.6rem)] font-bold">More Like This</h3>
+      <div className="relative">
+        <div className="grid grid-cols-2 gap-[clamp(0.6rem,1.4vw,1rem)] sm:grid-cols-3">
+          {shown.map((c, i) => (
+            <SimilarCard key={c.id} card={c} delay={i >= SIMILAR_COLLAPSED ? (i - SIMILAR_COLLAPSED) * 50 : null} />
+          ))}
+        </div>
+        {canExpand && !expanded && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-panel to-transparent" />}
       </div>
+      {canExpand && (
+        <div className="relative mt-6 flex h-0.5 justify-center bg-[#404040]">
+          <IconButton
+            label={expanded ? 'Show less' : 'Show more'}
+            onClick={() => {
+              setExpanded((v) => !v);
+              if (expanded) section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className="-translate-y-1/2"
+          >
+            <ChevronDownIcon className={`transition-transform duration-300 ease-standard ${expanded ? 'rotate-180' : ''}`} />
+          </IconButton>
+        </div>
+      )}
     </section>
+  );
+}
+
+function SimilarCard({ card, delay }: { card: Card; delay: number | null }) {
+  const openTitle = useOpenTitle();
+  const [inList, toggleList] = useListToggle(card.inList, card.id);
+  const [touched, setTouched] = useState(false);
+  const image = card.backdrop ?? card.thumb ?? card.poster;
+  const runtime = card.kind === 'show' ? null : formatRuntime(card.runtimeMinutes);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={card.title}
+      onClick={(e) => openTitle(card.id, e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') openTitle(card.id, e.currentTarget);
+      }}
+      className={`group/sim flex cursor-pointer flex-col overflow-hidden rounded-[0.25em] bg-raised outline-none transition-colors duration-200 hover:bg-[#3a3a3a] focus-visible:ring-2 focus-visible:ring-white ${delay !== null ? 'animate-fade-up' : ''}`}
+      style={delay !== null ? { animationDelay: `${delay}ms` } : undefined}
+    >
+      <div className="relative aspect-video overflow-hidden bg-[#232323]">
+        {image && <img src={image} alt="" loading="lazy" className="size-full object-cover transition-transform duration-500 ease-out-expo group-hover/sim:scale-105" />}
+        {runtime && <span className="absolute top-2 right-2 text-[clamp(12px,1vw,14px)] font-semibold drop-shadow-[0_1px_3px_rgb(0_0_0/0.9)]">{runtime}</span>}
+        <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover/sim:opacity-100">
+          <span className="grid size-11 scale-75 place-items-center rounded-full border border-white bg-black/50 transition-transform duration-300 ease-out-expo group-hover/sim:scale-100">
+            <PlayIcon size={20} />
+          </span>
+        </span>
+      </div>
+      <div className="flex flex-1 flex-col gap-2 p-[clamp(0.6rem,1.2vw,1rem)]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-sm font-semibold">{card.title}</p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-soft">
+              {ratingPercent(card.rating) && <span className="font-semibold text-match">{ratingPercent(card.rating)}</span>}
+              {card.contentRating && <Badge>{card.contentRating}</Badge>}
+              {card.year && <span>{card.year}</span>}
+            </div>
+          </div>
+          <IconButton
+            label={inList ? 'Remove from My List' : 'Add to My List'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setTouched(true);
+              void toggleList();
+            }}
+            className="size-9!"
+          >
+            {inList ? <CheckIcon key="in" size={16} className={touched ? 'animate-icon-pop' : ''} /> : <PlusIcon key="out" size={16} className={touched ? 'animate-icon-pop' : ''} />}
+          </IconButton>
+        </div>
+        {card.overview && <p className="line-clamp-4 text-xs leading-snug text-[#d2d2d2] sm:text-[13px]">{card.overview}</p>}
+      </div>
+    </div>
   );
 }
 

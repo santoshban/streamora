@@ -1,16 +1,37 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { XIcon } from './Icons';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react';
+import { useDismiss } from '../lib/hooks';
+import { EASE_OUT, reducedMotion } from '../lib/motion';
+import { CheckIcon, ChevronDownIcon, XIcon } from './Icons';
 
 // ── buttons ──────────────────────────────────────────────────────────────────
 
 type Variant = 'primary' | 'brand' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-white text-black hover:bg-white/80',
+  primary: 'bg-white text-black hover:bg-white/75',
   brand: 'bg-brand text-white hover:bg-brand-dark',
-  secondary: 'bg-neutral-500/40 text-white hover:bg-neutral-500/60 backdrop-blur',
+  // Netflix's translucent grey "More Info" button.
+  secondary: 'bg-[rgb(109_109_110/0.7)] text-white hover:bg-[rgb(109_109_110/0.4)]',
   ghost: 'text-neutral-200 hover:bg-white/10',
   danger: 'bg-red-700/80 text-white hover:bg-red-700',
+};
+
+const SIZES = {
+  sm: 'h-8 px-3 text-sm gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+  lg: 'h-11 px-6 text-base gap-2.5',
+  /** Billboard buttons scale with the viewport, like Netflix's 1.2vw text. */
+  hero: 'h-[clamp(2.5rem,2.55vw,3.25rem)] px-[clamp(1.2rem,1.6vw,2rem)] text-[clamp(1rem,1vw,1.25rem)] gap-[0.5em]',
 };
 
 export function Button({
@@ -20,12 +41,11 @@ export function Button({
   busy,
   children,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; busy?: boolean }) {
-  const sizes = { sm: 'h-8 px-3 text-sm gap-1.5', md: 'h-10 px-4 text-sm gap-2', lg: 'h-12 px-6 text-base gap-2.5' };
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: keyof typeof SIZES; busy?: boolean }) {
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${sizes[size]} ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-[4px] font-semibold whitespace-nowrap transition-[background-color,transform,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]} ${className}`}
       disabled={rest.disabled || busy}
       {...rest}
     >
@@ -35,18 +55,100 @@ export function Button({
   );
 }
 
-/** Round icon button (detail modal actions, card hover actions). */
-export function IconButton({ className = '', label, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+/** Round icon button (preview card, detail modal) with a Netflix-style tooltip. */
+export function IconButton({
+  className = '',
+  label,
+  tone = 'outline',
+  size = 'md',
+  tip = true,
+  children,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tone?: 'outline' | 'solid'; size?: 'sm' | 'md' | 'lg'; tip?: boolean }) {
+  const sizes = { sm: 'size-[clamp(30px,2.3vw,42px)]', md: 'size-10', lg: 'size-[clamp(2.6rem,3.1vw,3.5rem)]' };
+  const tones = {
+    outline: 'border-2 border-white/50 bg-[rgb(42_42_42/0.6)] text-white hover:border-white hover:bg-white/10',
+    solid: 'bg-white text-black hover:bg-white/75',
+  };
   return (
     <button
       type="button"
       aria-label={label}
-      title={label}
-      className={`grid size-10 shrink-0 place-items-center rounded-full border-2 border-neutral-400/70 bg-neutral-900/60 text-white transition hover:border-white ${className}`}
+      data-tip={tip ? label : undefined}
+      className={`grid shrink-0 place-items-center rounded-full transition-[background-color,border-color,transform] duration-200 active:scale-90 ${tip ? 'tip' : ''} ${sizes[size]} ${tones[tone]} ${className}`}
       {...rest}
     >
       {children}
     </button>
+  );
+}
+
+/** Netflix-style dropdown (season picker, genre filter): dark box, white caret, animated menu. */
+export function Dropdown<T extends string | number>({
+  value,
+  options,
+  onChange,
+  label,
+  placeholder,
+  className = '',
+  buttonClassName = '',
+  menuClassName = '',
+  align = 'left',
+}: {
+  value: T;
+  options: Array<{ value: T; label: ReactNode; detail?: ReactNode }>;
+  onChange: (value: T) => void;
+  label: string;
+  placeholder?: ReactNode;
+  className?: string;
+  buttonClassName?: string;
+  menuClassName?: string;
+  align?: 'left' | 'right';
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, () => setOpen(false));
+  const current = options.find((o) => o.value === value);
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-3 rounded-[3px] border border-white/40 bg-black px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-white/10 ${buttonClassName}`}
+      >
+        {current?.label ?? placeholder ?? label}
+        <ChevronDownIcon size={16} className={`transition-transform duration-300 ease-caret ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className={`absolute top-[calc(100%+4px)] z-30 max-h-[60vh] min-w-full overflow-y-auto rounded-[3px] border border-white/15 bg-black/95 py-1.5 text-sm shadow-2xl animate-menu ${align === 'right' ? 'right-0' : 'left-0'} ${menuClassName}`}
+        >
+          {options.map((o) => {
+            const selected = o.value === value;
+            return (
+              <li key={String(o.value)} role="option" aria-selected={selected}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left whitespace-nowrap transition-colors hover:bg-white/10 ${selected ? 'font-semibold text-white' : 'text-ink'}`}
+                >
+                  <span className="w-4 shrink-0">{selected && <CheckIcon size={14} />}</span>
+                  <span className="flex-1">{o.label}</span>
+                  {o.detail != null && <span className="pl-4 text-xs font-normal text-muted">{o.detail}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -120,46 +222,99 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 
 let openModals = 0;
 
-/** Accessible dialog with backdrop, Escape to close and body scroll lock. */
+/** Accessible dialog with backdrop, Escape to close and body scroll lock.
+ *  `origin` makes it zoom out of that rect (the tile that opened it). While `exiting`
+ *  it plays its close animation, then calls `onExited`. */
 export function Modal({
   onClose,
   children,
   label,
   className = 'max-w-lg',
   closeButton = true,
+  origin,
+  exiting = false,
+  onExited,
 }: {
   onClose: () => void;
   children: ReactNode;
   label: string;
   className?: string;
   closeButton?: boolean;
+  origin?: DOMRect | null;
+  exiting?: boolean;
+  onExited?: () => void;
 }) {
+  const overlay = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const onExitedRef = useRef(onExited);
+  onExitedRef.current = onExited;
+  const exitingRef = useRef(exiting);
+  exitingRef.current = exiting;
 
   useEffect(() => {
     openModals++;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !exitingRef.current) {
         e.stopPropagation();
         onCloseRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
     const previous = document.activeElement as HTMLElement | null;
-    panel.current?.focus();
+    panel.current?.focus({ preventScroll: true });
     return () => {
       window.removeEventListener('keydown', onKey);
       if (--openModals === 0) document.body.style.overflow = '';
-      previous?.focus?.();
+      previous?.focus?.({ preventScroll: true });
     };
   }, []);
 
+  // Enter: zoom out of the origin rect (Netflix's tile → modal), or a quick pop.
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!el || reducedMotion()) return;
+    overlay.current?.animate([{ backgroundColor: 'rgb(0 0 0 / 0)' }, { backgroundColor: 'rgb(0 0 0 / 0.7)' }], { duration: 320, easing: 'ease-out' });
+    if (origin && origin.width > 0) {
+      const to = el.getBoundingClientRect();
+      const scale = origin.width / to.width;
+      el.animate(
+        [
+          { transformOrigin: 'top left', transform: `translate(${origin.left - to.left}px, ${origin.top - to.top}px) scale(${scale})`, opacity: 0.5 },
+          { transformOrigin: 'top left', transform: 'none', opacity: 1 },
+        ],
+        { duration: 420, easing: EASE_OUT },
+      );
+    } else {
+      el.animate([{ transform: 'scale(0.94)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, easing: EASE_OUT });
+    }
+    // Only on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Exit: shrink and fade, then let the owner unmount us.
+  useEffect(() => {
+    if (!exiting) return;
+    const el = panel.current;
+    if (!el || reducedMotion()) {
+      onExitedRef.current?.();
+      return;
+    }
+    const fade = overlay.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-in', fill: 'forwards' });
+    const shrink = el.animate([{ transform: 'none' }, { transform: 'scale(0.92)' }], { duration: 240, easing: 'ease-in', fill: 'forwards' });
+    shrink.onfinish = () => onExitedRef.current?.();
+    return () => {
+      fade?.cancel();
+      shrink.cancel();
+    };
+  }, [exiting]);
+
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/70 px-3 py-8 backdrop-blur-sm sm:px-6 sm:py-12"
+      ref={overlay}
+      className={`fixed inset-0 z-50 overflow-y-auto bg-black/70 px-3 py-8 sm:px-6 sm:py-[2em] ${exiting ? 'pointer-events-none' : ''}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -170,16 +325,16 @@ export function Modal({
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className={`relative mx-auto w-full overflow-hidden rounded-lg bg-neutral-900 shadow-2xl ring-1 ring-white/10 outline-none animate-[pop_.18s_ease-out] ${className}`}
+        className={`relative mx-auto w-full overflow-hidden rounded-md bg-panel shadow-[0_3px_10px_rgb(0_0_0/0.75)] outline-none ${className}`}
       >
         {closeButton && (
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="absolute top-3 right-3 z-20 grid size-9 place-items-center rounded-full bg-neutral-900/80 text-white hover:bg-neutral-800"
+            className="absolute top-[0.9em] right-[0.9em] z-20 grid size-9 place-items-center rounded-full bg-panel text-white transition-[transform,background-color] duration-200 hover:rotate-90 hover:bg-hover"
           >
-            <XIcon size={18} />
+            <XIcon size={20} />
           </button>
         )}
         {children}
@@ -261,8 +416,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto rounded-md px-4 py-3 text-sm whitespace-pre-line shadow-xl ring-1 animate-[pop_.18s_ease-out] ${
-              t.tone === 'error' ? 'bg-red-950 text-red-100 ring-red-500/40' : 'bg-neutral-800 text-white ring-white/10'
+            className={`pointer-events-auto rounded-[4px] px-4 py-3 text-sm whitespace-pre-line shadow-xl ring-1 animate-fade-up ${
+              t.tone === 'error' ? 'bg-red-950 text-red-100 ring-red-500/40' : 'bg-[#e6e6e6] font-semibold text-[#181818] ring-black/10'
             }`}
           >
             {t.message}

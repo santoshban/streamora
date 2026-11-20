@@ -8,6 +8,18 @@ import { useRouter } from '../lib/router';
 import type { Profile } from '../lib/types';
 import { useSession } from '../state/session';
 
+/** 10vw, clamped to 84–200px, tracking window resizes. */
+function useAvatarSize() {
+  const measure = () => Math.round(Math.min(200, Math.max(84, window.innerWidth * 0.1)));
+  const [size, setSize] = useState(measure);
+  useEffect(() => {
+    const onResize = () => setSize(measure());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
+
 /** "Who's watching?" */
 export function ProfileGate() {
   const { signedIn } = useSession();
@@ -33,34 +45,37 @@ export function ProfileGate() {
     }
   };
 
+  // Netflix sizes the gate with the viewport: 10vw avatars (84–200px), 3.5vw heading.
+  const avatarSize = useAvatarSize();
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="px-6 py-5 sm:px-12">
-        <Logo className="text-3xl" />
+    <div className="flex min-h-screen flex-col bg-surface">
+      <header className="gutter-x flex h-(--nav-h) items-center animate-fade-in">
+        <Logo className="text-[1.6rem] min-[950px]:text-[1.9rem]" />
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 pb-24">
-        <h1 className="text-3xl font-medium sm:text-5xl">Who&rsquo;s watching?</h1>
-        {profiles.loading && <Spinner />}
+      <main
+        className={`flex flex-1 flex-col items-center justify-center px-6 pb-[8vh] transition-[scale,opacity] duration-500 ease-standard ${
+          busy !== null ? 'scale-[1.04] opacity-60' : ''
+        } animate-[pop_0.55s_var(--ease-out-expo)_backwards]`}
+      >
+        <h1 className="mb-[clamp(1.5rem,2.5vw,2.5rem)] text-[clamp(1.75rem,3.5vw,3.5rem)] font-medium">Who&rsquo;s watching?</h1>
+        {profiles.loading && <Spinner className="text-soft" />}
         {profiles.error ? <ErrorNote error={profiles.error} onRetry={profiles.reload} /> : null}
-        <ul className="flex max-w-4xl flex-wrap justify-center gap-6 sm:gap-8">
-          {profiles.data?.profiles.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                onClick={() => void choose(p)}
-                className="group flex w-24 flex-col items-center gap-3 sm:w-36"
-                disabled={busy !== null}
-              >
-                <span className="relative rounded-md ring-white transition group-hover:ring-4 group-focus-visible:ring-4">
-                  <Avatar profile={p} size={144} className="hidden sm:inline-grid" />
-                  <Avatar profile={p} size={96} className="sm:hidden" />
+        <ul className="flex max-w-[80vw] flex-wrap justify-center gap-[clamp(1rem,2vw,2rem)]">
+          {profiles.data?.profiles.map((p, i) => (
+            <li key={p.id} className="animate-fade-up" style={{ animationDelay: `${120 + i * 70}ms` }}>
+              <button type="button" onClick={() => void choose(p)} className="group flex flex-col items-center outline-none" disabled={busy !== null} style={{ width: avatarSize }}>
+                <span
+                  className="relative block overflow-hidden rounded-[4px] outline-[0.3em] outline-transparent transition-[outline-color,transform] duration-200 group-hover:outline-ink group-focus-visible:outline-ink outline-solid"
+                >
+                  <Avatar profile={p} size={avatarSize} className="rounded-none!" />
                   {busy === p.id && (
-                    <span className="absolute inset-0 grid place-items-center rounded-md bg-black/50">
+                    <span className="absolute inset-0 grid place-items-center bg-black/50">
                       <Spinner />
                     </span>
                   )}
                 </span>
-                <span className="flex items-center gap-1.5 text-neutral-400 transition group-hover:text-white sm:text-lg">
+                <span className="mt-[0.6em] flex min-h-[1.8em] items-center gap-1.5 text-[clamp(0.95rem,1.3vw,1.3rem)] text-muted transition-colors duration-200 group-hover:text-ink group-focus-visible:text-ink">
                   {p.name}
                   {p.hasPin && <LockIcon size={14} />}
                 </span>
@@ -68,7 +83,7 @@ export function ProfileGate() {
             </li>
           ))}
         </ul>
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {error && <p className="mt-6 text-sm text-red-300 animate-fade-in">{error}</p>}
       </main>
       {pinFor && <PinPrompt profile={pinFor} onClose={() => setPinFor(null)} onSignedIn={signedIn} />}
     </div>

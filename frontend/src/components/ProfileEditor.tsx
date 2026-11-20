@@ -173,6 +173,13 @@ export function ProfileEditor({
             <span className="text-sm">Autoplay next episode</span>
             <Toggle checked={prefs.autoplayNext !== false} onChange={(v) => pref('autoplayNext', v)} label="Autoplay next episode" />
           </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">
+              Autoplay previews while browsing
+              <span className="block text-xs text-neutral-400">Muted trailers on the home banner and when you hover a title.</span>
+            </span>
+            <Toggle checked={prefs.autoplayPreviews !== false} onChange={(v) => pref('autoplayPreviews', v)} label="Autoplay previews while browsing" />
+          </label>
         </fieldset>
 
         {error && <ErrorNote error={new Error(error)} />}
