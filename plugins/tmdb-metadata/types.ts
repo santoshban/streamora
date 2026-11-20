@@ -90,6 +90,7 @@ export interface TmdbMovieDetails {
   id: number;
   title: string;
   original_title?: string;
+  original_language?: string;
   tagline?: string;
   overview?: string;
   release_date?: string;
@@ -117,6 +118,7 @@ export interface TmdbTvDetails {
   id: number;
   name: string;
   original_name?: string;
+  original_language?: string;
   tagline?: string;
   overview?: string;
   first_air_date?: string;
@@ -156,4 +158,22 @@ export interface TmdbSeasonDetails {
   air_date?: string | null;
   poster_path?: string | null;
   episodes?: TmdbEpisode[];
+}
+
+/** `/movie/{id}/videos`, `/tv/{id}/videos` */
+export interface TmdbVideo {
+  id: string;
+  key: string;
+  site: string;
+  /** Trailer, Teaser, Clip, Featurette, Behind the Scenes, Bloopers, Opening Credits */
+  type: string;
+  name?: string;
+  size?: number;
+  official?: boolean;
+  published_at?: string;
+  iso_639_1?: string | null;
+}
+
+export interface TmdbVideos {
+  results: TmdbVideo[];
 }

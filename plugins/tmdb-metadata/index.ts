@@ -1,5 +1,6 @@
 import type {
   CallOptions,
+  MediaVideo,
   MetadataMatchRequest,
   MetadataMatchResult,
   MetadataSearchResult,
@@ -7,7 +8,7 @@ import type {
   PluginHttpError,
   SeasonMetadata,
 } from '@streamora/plugin-sdk';
-import { mapMovie, mapMovieSearch, mapSeason, mapShow, mapTvSearch, type ImageOptions } from './mapper.js';
+import { mapMovie, mapMovieSearch, mapSeason, mapShow, mapTvSearch, mapVideos, type ImageOptions } from './mapper.js';
 import { MIN_MATCH_SCORE, parseYear, pickBest } from './match.js';
 import { isNotFound, TmdbClient, TTL } from './tmdb-client.js';
 import type {
@@ -18,6 +19,7 @@ import type {
   TmdbSeasonDetails,
   TmdbTvDetails,
   TmdbTvSummary,
+  TmdbVideos,
 } from './types.js';
 
 type Kind = 'movie' | 'show';
@@ -164,6 +166,30 @@ const createPlugin: PluginFactory = (ctx) => {
           return mapSeason(season, imageOptions(language));
         } catch (err) {
           if (isNotFound(err)) return null;
+          throw err;
+        }
+      },
+
+      async getVideos(request, { signal }): Promise<MediaVideo[]> {
+        const language = languageFor(request.language);
+        const resolved = await resolveId(request.kind, request, language, signal);
+        if (!resolved) return [];
+        const lang = language.split('-')[0] ?? 'en';
+        const path = `/${request.kind === 'movie' ? 'movie' : 'tv'}/${resolved.id}`;
+        // Without include_video_language TMDB returns only the requested language.
+        const fetchVideos = (languages: string[]) =>
+          client.get<TmdbVideos>(`${path}/videos`, { language, include_video_language: [...new Set(languages)].join(',') }, { signal, ttlMs: TTL.details });
+        try {
+          let videos = mapVideos((await fetchVideos([lang, 'en', 'null'])).results, lang);
+          if (videos.length === 0) {
+            // Regional titles often list their trailer only in the original language.
+            const details = await client.get<Pick<TmdbMovieDetails, 'original_language'>>(path, { language }, { signal, ttlMs: TTL.details });
+            const original = details.original_language;
+            if (original && original !== lang && original !== 'en') videos = mapVideos((await fetchVideos([original])).results, lang);
+          }
+          return videos;
+        } catch (err) {
+          if (isNotFound(err)) return [];
           throw err;
         }
       },

@@ -2,6 +2,7 @@ import type {
   CastMember,
   CrewMember,
   EpisodeMetadata,
+  MediaVideo,
   MetadataMatchResult,
   MetadataSearchResult,
   SeasonMetadata,
@@ -14,6 +15,7 @@ import type {
   TmdbSeasonDetails,
   TmdbTvDetails,
   TmdbTvSummary,
+  TmdbVideo,
 } from './types.js';
 
 export interface ImageOptions {
@@ -221,4 +223,35 @@ export function mapTvSearch(r: TmdbTvSummary, o: ImageOptions): MetadataSearchRe
     poster: img(o, 'w342', r.poster_path),
     externalIds: { tmdb: String(r.id) },
   };
+}
+
+const VIDEO_SITES: Record<string, string> = { YouTube: 'youtube', Vimeo: 'vimeo' };
+const VIDEO_TYPES: Record<string, MediaVideo['type']> = { Trailer: 'trailer', Teaser: 'teaser', Clip: 'clip', Featurette: 'featurette' };
+const TYPE_RANK: Record<MediaVideo['type'], number> = { trailer: 0, teaser: 1, clip: 2, featurette: 3, other: 4 };
+
+/** Playable trailers, best first: trailers before teasers, the library's language
+ *  before English before the rest, official before fan uploads, then HD and newest. */
+export function mapVideos(videos: TmdbVideo[] | undefined, language: string, limit = 10): MediaVideo[] {
+  const langRank = (l?: string | null) => (l === language ? 0 : l === 'en' ? 1 : l ? 3 : 2);
+  return (videos ?? [])
+    .filter((v) => VIDEO_SITES[v.site] && typeof v.key === 'string' && v.key !== '')
+    .map((v) => ({ v, type: VIDEO_TYPES[v.type] ?? ('other' as const) }))
+    .sort(
+      (a, b) =>
+        TYPE_RANK[a.type] - TYPE_RANK[b.type] ||
+        langRank(a.v.iso_639_1) - langRank(b.v.iso_639_1) ||
+        Number(b.v.official === true) - Number(a.v.official === true) ||
+        (b.v.size ?? 0) - (a.v.size ?? 0) ||
+        (b.v.published_at ?? '').localeCompare(a.v.published_at ?? ''),
+    )
+    .slice(0, limit)
+    .map(({ v, type }) => ({
+      site: VIDEO_SITES[v.site]!,
+      key: v.key,
+      type,
+      name: nonEmpty(v.name),
+      language: v.iso_639_1 ?? undefined,
+      official: v.official,
+      publishedAt: nonEmpty(v.published_at),
+    }));
 }

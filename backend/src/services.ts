@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { ArtworkService } from './catalog/artwork.js';
 import { CatalogService } from './catalog/catalog.js';
+import { TrailerService } from './catalog/trailers.js';
 import type { AppConfig } from './config.js';
 import { libraries } from './db/schema.js';
 import { openDatabase, type DatabaseHandle, type DB } from './db/client.js';
@@ -38,6 +39,7 @@ export interface Services {
   scanner: LibraryScanner;
   scans: ScanManager;
   catalog: CatalogService;
+  trailers: TrailerService;
   artwork: ArtworkService;
   encoders: EncoderSelector;
   transcoder: TranscodeManager;
@@ -152,6 +154,7 @@ export async function createServices(config: AppConfig, log: Logger, options: Cr
     scanner,
     scans,
     catalog: new CatalogService(database.db),
+    trailers: new TrailerService(database.db, metadata, log.child({ module: 'trailers' })),
     artwork: new ArtworkService(
       config.cacheDir,
       () => database.db.select({ paths: libraries.paths }).from(libraries).all().flatMap((l) => l.paths),

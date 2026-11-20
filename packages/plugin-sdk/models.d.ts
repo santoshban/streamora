@@ -71,6 +71,22 @@ export interface MediaMetadata {
   externalIds?: ExternalIds;
 }
 
+/** A trailer/teaser hosted on a video site (TMDB lists these per title). */
+export interface MediaVideo {
+  /** Hosting site in lower case: `youtube` or `vimeo`. */
+  site: string;
+  /** The video id on that site. */
+  key: string;
+  type: 'trailer' | 'teaser' | 'clip' | 'featurette' | 'other';
+  name?: string;
+  /** ISO 639-1 language of the video, when known. */
+  language?: string;
+  /** Published by the studio/network. */
+  official?: boolean;
+  /** ISO date-time. */
+  publishedAt?: string;
+}
+
 export interface EpisodeMetadata {
   seasonNumber: number;
   episodeNumber: number;

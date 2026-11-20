@@ -5,6 +5,7 @@ import type {
   MediaFileInfo,
   MediaKind,
   MediaMetadata,
+  MediaVideo,
   SeasonMetadata,
   StreamSource,
   SubtitleTrack,
@@ -71,9 +72,20 @@ export interface MetadataSearchResult {
   externalIds: ExternalIds;
 }
 
+export interface MetadataVideosRequest {
+  kind: MediaKind;
+  title: string;
+  year?: number;
+  /** BCP 47 language of the library, e.g. `en-US`. */
+  language: string;
+  externalIds: ExternalIds;
+}
+
 export interface MetadataProvider {
   /** Identify a movie/show and return what this provider knows, or `null`. */
   match(request: MetadataMatchRequest, options: CallOptions): Promise<MetadataMatchResult | null>;
+  /** Trailers and teasers for a title, best first (shown as previews while browsing). */
+  getVideos?(request: MetadataVideosRequest, options: CallOptions): Promise<MediaVideo[]>;
   /** Season + episode details for a show. */
   getSeason?(request: MetadataSeasonRequest, options: CallOptions): Promise<SeasonMetadata | null>;
   /** Candidate list for the manual "Fix match" dialog. */

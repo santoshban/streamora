@@ -6,6 +6,7 @@ import type {
   ExternalIds,
   MediaKind,
   MediaMetadata,
+  MediaVideo,
   SeasonMetadata,
 } from '@streamora/plugin-sdk';
 
@@ -219,4 +220,30 @@ export function mergeSeason(base: SeasonMetadata, extra: SeasonMetadata): Season
     externalIds: mergeIds(base.externalIds, extra.externalIds),
     episodes: episodes.length ? episodes : undefined,
   });
+}
+
+const VIDEO_SITES = new Set(['youtube', 'vimeo']);
+const VIDEO_TYPES = new Set<MediaVideo['type']>(['trailer', 'teaser', 'clip', 'featurette', 'other']);
+
+/** Trailers from a provider: known sites only, ids that are safe to put in an embed URL. */
+export function sanitizeVideos(raw: unknown): MediaVideo[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MediaVideo[] = [];
+  for (const value of raw.slice(0, 20)) {
+    if (!value || typeof value !== 'object') continue;
+    const v = value as Record<string, unknown>;
+    const site = cleanString(v.site, 20)?.toLowerCase();
+    const key = cleanString(v.key, 64);
+    if (!site || !VIDEO_SITES.has(site) || !key || !/^[A-Za-z0-9_-]+$/.test(key)) continue;
+    out.push({
+      site,
+      key,
+      type: VIDEO_TYPES.has(v.type as MediaVideo['type']) ? (v.type as MediaVideo['type']) : 'other',
+      name: cleanString(v.name, 300),
+      language: cleanString(v.language, 8),
+      official: typeof v.official === 'boolean' ? v.official : undefined,
+      publishedAt: cleanString(v.publishedAt, 40),
+    });
+  }
+  return out;
 }

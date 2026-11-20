@@ -33,7 +33,7 @@ const artworkParams = z.object({
 
 /** Browsing, details, progress and My List for the signed-in profile. */
 export const catalogRoutes: FastifyPluginAsync = async (app) => {
-  const { db, catalog, artwork } = app.services;
+  const { db, catalog, artwork, trailers } = app.services;
   app.addHook('preHandler', requireProfile);
 
   const visibleItem = (request: FastifyRequest, id: number) => {
@@ -64,6 +64,13 @@ export const catalogRoutes: FastifyPluginAsync = async (app) => {
   app.get('/catalog/items/:id', async (request) => {
     const { id } = parseOrThrow(numericIdParams, request.params, 'title id');
     return { item: catalog.detail(request.profile!, visibleItem(request, id)) };
+  });
+
+  // Trailer for the browse previews (looked up through the metadata providers).
+  app.get('/catalog/items/:id/trailer', async (request, reply) => {
+    const { id } = parseOrThrow(numericIdParams, request.params, 'title id');
+    const trailer = await trailers.forItem(visibleItem(request, id));
+    return reply.header('cache-control', 'private, max-age=3600').send({ trailer });
   });
 
   app.get('/catalog/items/:id/seasons/:season', async (request) => {

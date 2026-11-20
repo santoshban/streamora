@@ -1,10 +1,12 @@
 import type {
   ExternalIds,
   MediaMetadata,
+  MediaVideo,
   MetadataMatchRequest,
   MetadataSearchQuery,
   MetadataSearchResult,
   MetadataSeasonRequest,
+  MetadataVideosRequest,
   SeasonMetadata,
 } from '@streamora/plugin-sdk';
 import { errorMessage } from '../../lib/errors.js';
@@ -19,6 +21,7 @@ import {
   mergeSeason,
   sanitizeMetadata,
   sanitizeSeason,
+  sanitizeVideos,
 } from './sanitize.js';
 
 export type MatchInput = Omit<MetadataMatchRequest, 'current' | 'externalIds'> & { externalIds?: ExternalIds };
@@ -122,6 +125,34 @@ export class MetadataService {
     }
 
     return { season: sources.length ? merged : null, sources, errors };
+  }
+
+  /** Trailers from the first provider, in priority order, that has any. */
+  async getVideos(
+    input: MetadataVideosRequest,
+    scope: CallScope = {},
+  ): Promise<{ videos: MediaVideo[]; source: string | null; errors: ProviderError[] }> {
+    const errors: ProviderError[] = [];
+    for (const provider of this.providers(scope.agents)) {
+      const getVideos = provider.impl.getVideos;
+      if (!getVideos) continue;
+      try {
+        const request: MetadataVideosRequest = structuredClone(input);
+        const result = await this.plugins.invoke(
+          provider.id,
+          'metadata.getVideos',
+          (o) => getVideos.call(provider.impl, request, o),
+          { signal: scope.signal },
+        );
+        const videos = sanitizeVideos(result);
+        if (videos.length) return { videos, source: provider.id, errors };
+      } catch (err) {
+        if (scope.signal?.aborted) throw err;
+        errors.push({ provider: provider.id, error: errorMessage(err) });
+        this.log.warn({ plugin: provider.id, title: input.title, err }, 'Video provider failed');
+      }
+    }
+    return { videos: [], source: null, errors };
   }
 
   /** Candidates from every provider implementing `search` (for the "Fix match" dialog). */
