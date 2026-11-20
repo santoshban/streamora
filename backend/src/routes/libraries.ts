@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { count, eq, ne } from 'drizzle-orm';
+import { and, count, eq, isNotNull, ne } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { DB } from '../db/client.js';
-import { libraries, mediaItems, type Library } from '../db/schema.js';
+import { libraries, mediaFiles, mediaItems, type Library } from '../db/schema.js';
 import { requireAdmin, requireProfile } from '../lib/auth.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { isPathInside } from '../lib/paths.js';
@@ -103,6 +103,16 @@ function toLibraryDto(lib: Library, counts?: { movies: number; shows: number }) 
   };
 }
 
+/** The useful part of an ffprobe error: its last line without the file path prefix. */
+function lastLine(error: string | null): string | null {
+  const line = (error ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .pop();
+  return line ? line.replace(/^.*?:\s(?=[A-Z])/, '').slice(0, 300) : null;
+}
+
 export const libraryRoutes: FastifyPluginAsync = async (app) => {
   const { db, plugins, events } = app.services;
   const find = (id: number) => db.select().from(libraries).where(eq(libraries.id, id)).get();
@@ -111,6 +121,33 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
     const counts = libraryCounts(db);
     const rows = db.select().from(libraries).orderBy(libraries.name).all();
     return { libraries: rows.map((l) => toLibraryDto(l, counts.get(l.id))) };
+  });
+
+  // Files ffprobe could not read (damaged, or a download that hasn't finished). The
+  // catalog hides them until the file changes on disk; admins can see them here.
+  app.get('/libraries/unplayable', { preHandler: requireAdmin }, async () => {
+    const rows = db
+      .select({
+        id: mediaFiles.id,
+        libraryId: mediaFiles.libraryId,
+        path: mediaFiles.path,
+        sizeBytes: mediaFiles.sizeBytes,
+        error: mediaFiles.probeError,
+        probedAt: mediaFiles.probedAt,
+        title: mediaItems.title,
+      })
+      .from(mediaFiles)
+      .leftJoin(mediaItems, eq(mediaItems.id, mediaFiles.mediaItemId))
+      .where(and(eq(mediaFiles.missing, false), isNotNull(mediaFiles.probedAt), isNotNull(mediaFiles.probeError)))
+      .all();
+    return {
+      files: rows.map((r) => ({
+        ...r,
+        // ffprobe's last line is the useful one ("Invalid data found when processing input").
+        error: lastLine(r.error),
+        probedAt: r.probedAt?.toISOString() ?? null,
+      })),
+    };
   });
 
   app.get('/libraries/:id', { preHandler: requireProfile }, async (request) => {

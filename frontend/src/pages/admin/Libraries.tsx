@@ -3,10 +3,20 @@ import { ArrowLeftIcon, FilmIcon, FolderIcon, PencilIcon, RefreshIcon, TrashIcon
 import { Badge, Button, ConfirmDialog, ErrorNote, Field, inputClass, Modal, Spinner, Toggle, useToast } from '../../components/ui';
 import { api, errorText, qs } from '../../lib/api';
 import { useServerEvents } from '../../lib/events';
-import { timeAgo } from '../../lib/format';
+import { formatBytes, timeAgo } from '../../lib/format';
 import { useAsync } from '../../lib/hooks';
 import { useRouter } from '../../lib/router';
 import type { FolderListing, Library, LibraryType, PluginSummary, ScanProgress, ScanStatus } from '../../lib/types';
+
+/** A file ffprobe could not read; the catalog hides it until it changes on disk. */
+interface UnplayableFile {
+  id: number;
+  libraryId: number;
+  path: string;
+  sizeBytes: number;
+  error: string | null;
+  title: string | null;
+}
 
 const TYPE_LABEL: Record<LibraryType, string> = { movies: 'Movies', shows: 'TV Shows', anime: 'Anime' };
 const PHASE_LABEL: Record<ScanProgress['phase'], string> = {
@@ -24,6 +34,7 @@ export function LibrariesPage() {
   const toast = useToast();
   const libs = useAsync((signal) => api.get<{ libraries: Library[] }>('/api/libraries', { signal }), []);
   const scans = useAsync((signal) => api.get<{ scans: ScanStatus[] }>('/api/scans', { signal }), []);
+  const unplayable = useAsync((signal) => api.get<{ files: UnplayableFile[] }>('/api/libraries/unplayable', { signal }), []);
   const [editing, setEditing] = useState<Library | 'new' | null>(query.get('setup') ? 'new' : null);
   const [deleting, setDeleting] = useState<Library | null>(null);
 
@@ -36,6 +47,7 @@ export function LibrariesPage() {
     } else {
       scans.reload();
       libs.reload();
+      unplayable.reload();
     }
   });
 
@@ -144,6 +156,7 @@ export function LibrariesPage() {
               )}
               {!running && status?.state === 'queued' && <p className="mt-3 text-sm text-neutral-400">Scan queued…</p>}
               {!running && last && <LastScan last={last} />}
+              <UnplayableList files={unplayable.data?.files.filter((f) => f.libraryId === lib.id) ?? []} />
             </li>
           );
         })}
@@ -175,6 +188,36 @@ export function LibrariesPage() {
         />
       )}
     </div>
+  );
+}
+
+/** Files that are on disk but can't be played, so they're missing from the catalog. */
+function UnplayableList({ files }: { files: UnplayableFile[] }) {
+  if (files.length === 0) return null;
+  return (
+    <details className="group/bad mt-4 rounded-md bg-amber-500/5 ring-1 ring-amber-500/20">
+      <summary className="flex items-center gap-2 px-3 py-2 text-sm text-amber-300 select-none">
+        <span className="transition-transform group-open/bad:rotate-90">›</span>
+        {files.length === 1 ? '1 file can’t be played and is hidden' : `${files.length} files can’t be played and are hidden`}
+      </summary>
+      <ul className="space-y-2.5 px-3 pb-2 text-xs">
+        {files.map((f) => (
+          <li key={f.id}>
+            <p className="truncate font-mono text-neutral-300" title={f.path}>
+              {f.path.split(/[\\/]/).pop()}
+            </p>
+            <p className="text-neutral-500">
+              {f.title && `${f.title} · `}
+              {formatBytes(f.sizeBytes)}
+              {f.error && ` · ${f.error}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="px-3 pb-3 text-xs text-neutral-500">
+        Usually a damaged file, or a download that hasn’t finished (the file exists but holds no video yet). Streamora reads it again as soon as the file changes on disk.
+      </p>
+    </details>
   );
 }
 
