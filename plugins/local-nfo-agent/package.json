@@ -1,0 +1,12 @@
+{
+  "name": "@streamora-plugin/local-nfo-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@streamora/plugin-sdk": "*"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.12.1"
+  }
+}

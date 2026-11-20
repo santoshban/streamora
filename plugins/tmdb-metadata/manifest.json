@@ -1,0 +1,96 @@
+{
+  "id": "tmdb-metadata",
+  "name": "TMDB Metadata",
+  "version": "1.0.0",
+  "description": "Posters, textless backdrops, title logos, synopses, genres, ratings, certifications, cast and episode details from The Movie Database (TMDB).",
+  "author": "Streamora",
+  "homepage": "https://developer.themoviedb.org/docs",
+  "license": "MIT",
+  "apiVersion": 1,
+  "main": "index.ts",
+  "capabilities": ["metadata"],
+  "priority": 50,
+  "enabledByDefault": true,
+  "permissions": {
+    "network": ["api.themoviedb.org", "setting:apiBaseUrl"]
+  },
+  "rateLimit": { "requests": 20, "intervalMs": 1000 },
+  "settings": [
+    {
+      "key": "apiKey",
+      "type": "secret",
+      "label": "API key or Read Access Token",
+      "description": "Create one for free at themoviedb.org → Settings → API. Both the v3 API key and the v4 Read Access Token work.",
+      "required": true,
+      "env": "TMDB_API_KEY"
+    },
+    {
+      "key": "language",
+      "type": "string",
+      "label": "Language override",
+      "description": "Leave empty to use each library's language (e.g. en-US, fr-FR).",
+      "placeholder": "en-US",
+      "pattern": "^([a-z]{2}(-[A-Z]{2})?)?$",
+      "default": ""
+    },
+    {
+      "key": "region",
+      "type": "string",
+      "label": "Certification country",
+      "description": "ISO 3166-1 country used for age ratings (PG-13, 12, FSK 16...).",
+      "pattern": "^[A-Z]{2}$",
+      "default": "US"
+    },
+    {
+      "key": "posterSize",
+      "type": "select",
+      "label": "Poster size",
+      "options": [
+        { "value": "w342", "label": "Small (342 px)" },
+        { "value": "w500", "label": "Medium (500 px)" },
+        { "value": "w780", "label": "Large (780 px)" },
+        { "value": "original", "label": "Original" }
+      ],
+      "default": "w500"
+    },
+    {
+      "key": "backdropSize",
+      "type": "select",
+      "label": "Backdrop size",
+      "options": [
+        { "value": "w780", "label": "Small (780 px)" },
+        { "value": "w1280", "label": "HD (1280 px)" },
+        { "value": "original", "label": "Original (up to 4K)" }
+      ],
+      "default": "w1280"
+    },
+    {
+      "key": "castLimit",
+      "type": "number",
+      "label": "Cast members to keep",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 20
+    },
+    {
+      "key": "includeAdult",
+      "type": "boolean",
+      "label": "Include adult titles in searches",
+      "default": false
+    },
+    {
+      "key": "apiBaseUrl",
+      "type": "url",
+      "label": "API base URL",
+      "description": "Change only when routing through a caching proxy.",
+      "default": "https://api.themoviedb.org/3"
+    },
+    {
+      "key": "imageBaseUrl",
+      "type": "url",
+      "label": "Image base URL",
+      "default": "https://image.tmdb.org/t/p"
+    }
+  ]
+}

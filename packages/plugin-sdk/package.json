@@ -1,0 +1,16 @@
+{
+  "name": "@streamora/plugin-sdk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Type definitions for Streamora plugins: manifest, PluginContext and capability contracts.",
+  "type": "module",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts"
+    }
+  },
+  "files": [
+    "*.d.ts"
+  ]
+}

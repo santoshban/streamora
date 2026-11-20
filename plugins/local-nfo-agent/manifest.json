@@ -1,0 +1,38 @@
+{
+  "id": "local-nfo-agent",
+  "name": "Local NFO & Artwork",
+  "version": "1.0.0",
+  "description": "Reads Kodi/Plex-compatible .nfo files and local poster.jpg / fanart.jpg / clearlogo.png sidecar artwork for fully offline libraries. Runs before online agents and passes IMDb/TMDB ids along to them.",
+  "author": "Streamora",
+  "license": "MIT",
+  "apiVersion": 1,
+  "main": "index.ts",
+  "capabilities": ["metadata"],
+  "priority": 10,
+  "enabledByDefault": true,
+  "permissions": {
+    "filesystem": "library-read"
+  },
+  "settings": [
+    {
+      "key": "readNfo",
+      "type": "boolean",
+      "label": "Read .nfo files",
+      "default": true
+    },
+    {
+      "key": "readArtwork",
+      "type": "boolean",
+      "label": "Use local artwork files",
+      "description": "poster.jpg, fanart.jpg, clearlogo.png, <video>-poster.jpg, season01-poster.jpg, <episode>-thumb.jpg ...",
+      "default": true
+    },
+    {
+      "key": "passIds",
+      "type": "boolean",
+      "label": "Share IDs from NFO files with other agents",
+      "description": "Lets the TMDB agent fetch the exact title instead of searching by name.",
+      "default": true
+    }
+  ]
+}

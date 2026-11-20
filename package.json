@@ -1,0 +1,40 @@
+{
+  "name": "streamora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted, Netflix-style personal media server with an extensible plugin system.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend",
+    "plugins/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c red,cyan \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev -w @streamora/backend",
+    "dev:frontend": "npm run dev -w @streamora/frontend",
+    "build": "npm run build -w @streamora/frontend && npm run build -w @streamora/backend",
+    "start": "npm run start -w @streamora/backend",
+    "typecheck": "tsc -p packages/plugin-sdk && tsc -p backend && tsc -p plugins && tsc -p frontend",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "npm run db:generate -w @streamora/backend"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "concurrently": "^9.2.5",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.9.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.18.20": true
+  }
+}

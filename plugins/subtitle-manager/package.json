@@ -1,0 +1,9 @@
+{
+  "name": "@streamora-plugin/subtitle-manager",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@streamora/plugin-sdk": "*"
+  }
+}

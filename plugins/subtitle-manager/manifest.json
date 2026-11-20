@@ -1,0 +1,56 @@
+{
+  "id": "subtitle-manager",
+  "name": "Subtitle Manager",
+  "version": "1.0.0",
+  "description": "Finds sidecar subtitles (.srt/.ass/.ssa/.vtt, Subs/ folders) and embedded text tracks, and converts them on the fly to WebVTT for browser playback. Can pre-extract embedded subtitles after each library scan.",
+  "author": "Streamora",
+  "license": "MIT",
+  "apiVersion": 1,
+  "main": "index.ts",
+  "capabilities": ["subtitles", "post_scan"],
+  "priority": 50,
+  "enabledByDefault": true,
+  "permissions": {
+    "filesystem": "library-read",
+    "ffmpeg": true
+  },
+  "settings": [
+    {
+      "key": "sidecarFolders",
+      "type": "list",
+      "label": "Subtitle sub-folders",
+      "description": "Folder names next to the video that are searched for subtitle files.",
+      "default": ["Subs", "Subtitles"]
+    },
+    {
+      "key": "preferredLanguages",
+      "type": "list",
+      "label": "Languages to pre-extract",
+      "description": "ISO 639 codes or names (en, eng, English). Empty = every language.",
+      "default": ["eng"]
+    },
+    {
+      "key": "preExtract",
+      "type": "boolean",
+      "label": "Pre-extract embedded subtitles after scans",
+      "description": "Extracting from large MKV files can take a while; doing it ahead of time makes subtitles appear instantly.",
+      "default": false
+    },
+    {
+      "key": "cacheDays",
+      "type": "number",
+      "label": "Keep converted subtitles for (days)",
+      "min": 1,
+      "max": 3650,
+      "default": 90
+    },
+    {
+      "key": "extractTimeoutSeconds",
+      "type": "number",
+      "label": "Extraction timeout (seconds)",
+      "min": 10,
+      "max": 3600,
+      "default": 300
+    }
+  ]
+}

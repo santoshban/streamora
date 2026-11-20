@@ -1,0 +1,1 @@
+ALTER TABLE `plugins` ADD `configured_at` integer;

@@ -1,0 +1,1 @@
+ALTER TABLE `watch_progress` ADD `hidden_from_continue` integer DEFAULT false NOT NULL;
