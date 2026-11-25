@@ -1,0 +1,60 @@
+appId: com.streamora.desktop
+productName: Streamora
+copyright: Copyright © Santosh Ban
+
+directories:
+  buildResources: assets
+  output: release
+
+# The app code. It has no runtime dependencies of its own.
+files:
+  - dist/**
+  - assets/**
+  - package.json
+  - '!node_modules'
+
+# Kept outside the asar archive: the server loads a native module and runs
+# executables, and finds its files by path.
+extraResources:
+  - from: build/server
+    to: server
+    filter: ['**/*']
+  # electron-builder leaves out a node_modules folder at the root of a copied
+  # folder, unless it is named explicitly.
+  - from: build/server/node_modules
+    to: server/node_modules
+    filter: ['**/*']
+  - from: build/ffmpeg
+    to: ffmpeg
+    filter: ['**/*']
+  - from: ../LICENSE
+    to: LICENSE.txt
+
+# The staged server brings its own better-sqlite3; nothing to compile.
+npmRebuild: false
+electronLanguages: [en-US]
+
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+
+win:
+  target: [{ target: nsis, arch: [x64] }]
+  icon: assets/icon.png
+  # 'asInvoker' is the default: the app never needs administrator rights.
+
+nsis:
+  artifactName: Streamora-Setup-${version}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Streamora
+  # Profiles, libraries and watch history survive an uninstall.
+  deleteAppDataOnUninstall: false
+  differentialPackage: false
+
+publish: null

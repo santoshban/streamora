@@ -25,3 +25,8 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Desktop app: staged server, downloads and installers
+/desktop/build/
+/desktop/.cache/
+/desktop/release/

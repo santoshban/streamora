@@ -23,7 +23,9 @@
     "typecheck": "tsc -p packages/plugin-sdk && tsc -p backend && tsc -p plugins && tsc -p frontend",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "npm run db:generate -w @streamora/backend"
+    "db:generate": "npm run db:generate -w @streamora/backend",
+    "desktop:install": "npx --yes npm@11 ci --prefix desktop",
+    "desktop:dist": "npm run dist --prefix desktop"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

@@ -87,6 +87,21 @@ npm start
 
 The server then hosts the web UI itself on **http://localhost:8484**, so other devices on your network can use `http://<your-computer's-ip>:8484`. Set `NODE_ENV=production` in `.env` for a production install.
 
+### Windows desktop app
+
+The desktop app is the whole thing in one installer: server, FFmpeg and UI, with no Node.js or FFmpeg to set up. Build it on Windows with:
+
+```bash
+npm install               # once, in the repository root
+npm run desktop:install   # once
+npm run desktop:dist      # → desktop/release/Streamora-Setup-<version>.exe
+```
+
+- It installs per user, without administrator rights. The installer isn't code-signed, so Windows SmartScreen may warn about it.
+- The server keeps running in the notification area after the window is closed. Right-click the icon (or press <kbd>Alt</kbd> in the window) for the settings: start at sign-in, stay in the background, and **Let other devices on my network connect**, which is off at first.
+- **Import from another Streamora folder…** copies profiles, libraries, watch history and plugin settings from an existing install, even while that one is running.
+- Everything is stored in `%LOCALAPPDATA%\Streamora`, and uninstalling leaves it there. Your own plugins go into `plugins\` and optional settings (same format as `.env`) into `streamora.env`.
+
 ## Organising your media
 
 Streamora understands the common Plex/Jellyfin conventions. Folders per title work best, but loose files with release-style names are fine too.
@@ -257,6 +272,7 @@ npm test             # Vitest. Streaming tests need ffmpeg on the PATH.
 npm run typecheck    # Type-check every package
 npm run build        # Build web UI and server
 npm run db:generate  # Create a migration after editing backend/src/db/schema.ts
+npm run desktop:dist # Build the Windows installer (see above)
 ```
 
 ```text
@@ -268,10 +284,11 @@ streamora/
 ├── frontend/              React 19 + Vite + Tailwind CSS web UI
 ├── packages/plugin-sdk/   Type definitions for plugin authors
 ├── plugins/               Bundled plugins
+├── desktop/               Windows desktop app (Electron); not an npm workspace
 └── data/                  Created at runtime, git-ignored: database, caches, transcodes
 ```
 
-**Stack:** TypeScript, Fastify, SQLite (better-sqlite3 + Drizzle ORM), React, Vite, Tailwind CSS, hls.js, FFmpeg, esbuild and chokidar.
+**Stack:** TypeScript, Fastify, SQLite (better-sqlite3 + Drizzle ORM), React, Vite, Tailwind CSS, hls.js, FFmpeg, esbuild, chokidar and Electron (desktop app).
 
 ## Roadmap
 
