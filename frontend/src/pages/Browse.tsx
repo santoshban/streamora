@@ -17,30 +17,8 @@ const RECENT_TAGS = 5;
 const RECENT_DAYS = 14;
 
 function PageFooter() {
-  const { profile, switchProfile } = useSession();
-  const links: Array<[string, string]> = [
-    ['/', 'Home'],
-    ['/shows', 'TV Shows'],
-    ['/movies', 'Movies'],
-    ['/my-list', 'My List'],
-  ];
-  if (profile?.isAdmin) links.push(['/admin/libraries', 'Libraries'], ['/admin/plugins', 'Plugins']);
   return (
     <footer className="mx-auto mt-[clamp(3rem,6vw,6rem)] max-w-[980px] px-[4%] pb-10 text-[13px] text-muted">
-      <ul className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-        {links.map(([to, label]) => (
-          <li key={to}>
-            <Link to={to} className="hover:underline">
-              {label}
-            </Link>
-          </li>
-        ))}
-        <li>
-          <button type="button" onClick={switchProfile} className="hover:underline">
-            Switch profile
-          </button>
-        </li>
-      </ul>
       <TmdbCredit className="mb-4 max-w-xl" />
       <p className="text-[11px]">&copy; {new Date().getFullYear()} Streamora &mdash; your library, your server.</p>
     </footer>
