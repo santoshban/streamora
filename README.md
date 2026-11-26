@@ -111,7 +111,7 @@ npm run desktop:dist      # → desktop/release/Streamora-Setup-<version>.exe
 
 ### Android app
 
-The Android app connects to a Streamora server on your network. You browse in the same web UI, and videos play in a native player: 4K HEVC, Dolby audio (AC3, E-AC3, TrueHD) and DTS usually play as they are, with no transcoding on the server. Download `Streamora-<version>.apk` from the [releases page](https://github.com/santoshban/streamora/releases), or see [android/README.md](android/README.md) to build it.
+The Android app connects to a Streamora server on your network. You browse in the same web UI, and videos play in a native player: 4K HEVC, Dolby audio (AC3, E-AC3, TrueHD) and DTS usually play as they are, with no transcoding on the server. Music keeps playing when you leave the app, with controls in the notification, on the lock screen and on Bluetooth headsets. Download `Streamora-<version>.apk` from the [releases page](https://github.com/santoshban/streamora/releases), or see [android/README.md](android/README.md) to build it.
 
 ### Watching away from home
 

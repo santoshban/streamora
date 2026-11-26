@@ -75,6 +75,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.ui)
+    // Music from the web player: media notification, lock screen and headset controls.
+    implementation(libs.media3.session)
     // AC3, E-AC3, DTS and TrueHD audio on phones without those decoders. GPL-3.0.
     implementation(libs.media3.ffmpeg.decoder)
 

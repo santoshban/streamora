@@ -12,7 +12,26 @@ export type AppMessage =
   | { type: 'play'; fileId: number; startSeconds: number | null }
   | { type: 'changeServer' }
   /** A profile is signed in: the app can now ask for the server's other addresses. */
-  | { type: 'signedIn' };
+  | { type: 'signedIn' }
+  /**
+   * The music player's state, for the app's media notification, lock screen
+   * controls and keeping the page running in the background.
+   */
+  | {
+      type: 'music';
+      state: 'playing' | 'paused' | 'stopped';
+      track?: { id: number; title: string; artist: string; album: string; art: string | null };
+      durationMs?: number;
+      positionMs?: number;
+      buffering?: boolean;
+      hasNext?: boolean;
+    };
+
+/**
+ * Sent by the app (notification, lock screen, headset buttons) as a window event
+ * with `detail: { action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'stop', positionMs? }`.
+ */
+export const MUSIC_COMMAND_EVENT = 'streamora:music-command';
 
 const bridge = (window as unknown as { StreamoraAndroid?: AndroidBridge }).StreamoraAndroid;
 

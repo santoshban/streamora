@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val BRIDGE = "StreamoraAndroid"
         const val RESUMED_EVENT = "streamora:app-resumed"
+        const val MUSIC_COMMAND_EVENT = "streamora:music-command"
         /** The server's session cookie (backend/src/lib/session.ts). */
         const val SESSION_COOKIE = "ls_session"
         const val SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
@@ -64,6 +65,9 @@ class MainActivity : ComponentActivity() {
     private var webGone = false
     private var playerOpenedAt = 0L
     private var connectJob: Job? = null
+    /** The page is playing music: keep it running when the app goes to the background. */
+    private var musicPlaying = false
+    private val musicCommands: (String, Long?) -> Unit = { action, positionMs -> handler.post { sendMusicCommand(action, positionMs) } }
 
     private val handler = Handler(Looper.getMainLooper())
     private val recheck = Runnable { recheckServer() }
@@ -116,6 +120,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setUpWebView()
+        MusicBridge.commands = musicCommands
         if (savedInstanceState != null && b.web.restoreState(savedInstanceState) != null) use(saved, reload = false) else connect()
     }
 
@@ -269,7 +274,21 @@ class MainActivity : ComponentActivity() {
             }
             "changeServer" -> startActivity(ConnectActivity.intent(this))
             "signedIn" -> learnAddresses()
+            "music" -> {
+                val info = MusicInfo.from(message)
+                musicPlaying = info?.playing == true
+                MusicBridge.update(this, info)
+            }
         }
+    }
+
+    /** A command from the media notification, lock screen or a headset, run in the page's player. */
+    private fun sendMusicCommand(action: String, positionMs: Long?) {
+        if (!::b.isInitialized || webGone || isFinishing) return
+        // Paused in the background the page was put to sleep with the rest of the app.
+        if (action == "play") b.web.onResume()
+        val detail = JSONObject().put("action", action).apply { if (positionMs != null) put("positionMs", positionMs) }
+        b.web.evaluateJavascript("window.dispatchEvent(new CustomEvent('$MUSIC_COMMAND_EVENT', { detail: $detail }))", null)
     }
 
     private fun isServer(url: Uri): Boolean {
@@ -320,7 +339,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
-        if (::b.isInitialized && !webGone) b.web.onPause()
+        // Music keeps playing in the background (MusicService keeps the app alive meanwhile).
+        if (::b.isInitialized && !webGone && !musicPlaying) b.web.onPause()
         CookieManager.getInstance().flush()
         super.onPause()
     }
@@ -332,6 +352,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(recheck)
+        // The page goes with this window, and the music with it.
+        if (MusicBridge.commands === musicCommands) {
+            MusicBridge.commands = null
+            MusicBridge.update(this, null)
+        }
         if (::b.isInitialized && !webGone) {
             b.root.removeView(b.web)
             b.web.destroy()

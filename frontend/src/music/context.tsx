@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Button, inputClass, Modal, useToast } from '../components/ui';
 import { api, errorText } from '../lib/api';
+import { inAndroidApp, MUSIC_COMMAND_EVENT, postToApp } from '../lib/native';
 import { MusicPlayer, type PlayerState, type PlayerTime } from './player';
 import type { Playlist, Track } from './types';
 
@@ -30,6 +31,7 @@ export function MusicProvider({ profileId, children }: { profileId: number; chil
     player.attach();
     return () => player.detach();
   }, [player]);
+  useAndroidMusicBridge(player);
 
   const [playlists, setPlaylists] = useState<Playlist[]>();
   const [tick, setTick] = useState(0);
@@ -111,6 +113,81 @@ export function usePlayerState(): PlayerState {
 export function usePlayerTime(): PlayerTime {
   const { player } = useMusic();
   return useSyncExternalStore(player.subscribeTime, player.getTime);
+}
+
+// ── Android app ──────────────────────────────────────────────────────────────
+
+/**
+ * In the Android app, tells the app what's playing (it shows a media
+ * notification and keeps the page alive in the background) and takes its
+ * play/pause/next/seek commands.
+ */
+function useAndroidMusicBridge(player: MusicPlayer) {
+  useEffect(() => {
+    if (!inAndroidApp) return;
+    let lastKey = '';
+    let sentPosition = 0;
+    let sentAt = 0;
+    let sentPlaying = false;
+
+    const send = () => {
+      const s = player.getState();
+      const t = player.getTime();
+      const item = s.queue[s.index];
+      if (!item) {
+        if (lastKey !== 'stopped') postToApp({ type: 'music', state: 'stopped' });
+        lastKey = 'stopped';
+        return;
+      }
+      const state = s.playing ? 'playing' : 'paused';
+      const hasNext = s.index < s.queue.length - 1 || s.repeat === 'all' || s.autoplay;
+      const key = `${state}|${item.key}|${s.buffering}|${hasNext}|${Math.round(t.duration)}|${item.track.title}`;
+      // Seeks: the position moved away from where the app is extrapolating it.
+      const expected = sentPosition + (sentPlaying ? (performance.now() - sentAt) / 1000 : 0);
+      if (key === lastKey && Math.abs(t.current - expected) < 2) return;
+      lastKey = key;
+      sentPosition = t.current;
+      sentAt = performance.now();
+      sentPlaying = s.playing;
+      const { track } = item;
+      postToApp({
+        type: 'music',
+        state,
+        track: {
+          id: track.id,
+          title: track.title,
+          artist: track.artistName,
+          album: track.album.title,
+          art: track.art ? new URL(track.art, window.location.origin).href : null,
+        },
+        durationMs: Math.round((t.duration || track.duration || 0) * 1000),
+        positionMs: Math.round(t.current * 1000),
+        buffering: s.buffering,
+        hasNext,
+      });
+    };
+
+    const onCommand = (e: Event) => {
+      const { action, positionMs } = (e as CustomEvent<{ action?: string; positionMs?: number }>).detail ?? {};
+      if (action === 'play') player.play();
+      else if (action === 'pause' || action === 'stop') player.pause();
+      else if (action === 'next') player.next();
+      else if (action === 'previous') player.previous();
+      else if (action === 'seek' && typeof positionMs === 'number') player.seek(positionMs / 1000);
+    };
+
+    const unsubscribe = player.subscribe(send);
+    const unsubscribeTime = player.subscribeTime(send);
+    window.addEventListener(MUSIC_COMMAND_EVENT, onCommand);
+    send();
+    return () => {
+      unsubscribe();
+      unsubscribeTime();
+      window.removeEventListener(MUSIC_COMMAND_EVENT, onCommand);
+      // Signed out or switched profile: the notification goes away.
+      postToApp({ type: 'music', state: 'stopped' });
+    };
+  }, [player]);
 }
 
 // ── dialogs ──────────────────────────────────────────────────────────────────
