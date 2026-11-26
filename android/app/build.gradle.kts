@@ -6,7 +6,7 @@ plugins {
 }
 
 /** Shown in Android's app info, and part of the release APK's file name. */
-val appVersion = "0.2.0"
+val appVersion = "0.3.0"
 
 android {
     namespace = "io.github.santoshban.streamora"
@@ -19,7 +19,7 @@ android {
         // has to ask for before it can do anything. Raise it together with that.
         targetSdk = 36
         // Raise with every release: Android only installs an update with a higher code.
-        versionCode = 2
+        versionCode = 3
         versionName = appVersion
     }
 
