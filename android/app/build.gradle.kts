@@ -6,7 +6,7 @@ plugins {
 }
 
 /** Shown in Android's app info, and part of the release APK's file name. */
-val appVersion = "0.1.0"
+val appVersion = "0.2.0"
 
 android {
     namespace = "io.github.santoshban.streamora"
@@ -18,7 +18,8 @@ android {
         // 37 would add Android 17's local-network permission, which a LAN client
         // has to ask for before it can do anything. Raise it together with that.
         targetSdk = 36
-        versionCode = 1
+        // Raise with every release: Android only installs an update with a higher code.
+        versionCode = 2
         versionName = appVersion
     }
 

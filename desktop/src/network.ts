@@ -35,13 +35,34 @@ export async function findFreePort(preferred: number): Promise<number> {
   throw new Error(`No free port between ${preferred} and ${preferred + 49}`);
 }
 
-/** Addresses other devices can use, leaving out virtual adapters. */
-export function lanAddresses(): string[] {
-  const found: string[] = [];
+/** Tailscale, ZeroTier and WireGuard adapters. */
+const VPN_ADAPTER = /tailscale|zerotier|wireguard/i;
+
+/** 100.64/10, the range Tailscale gives its devices. */
+function inTailscaleRange(address: string): boolean {
+  const [a, b] = address.split('.').map(Number);
+  return a === 100 && b! >= 64 && b! <= 127;
+}
+
+export interface ShareAddresses {
+  /** On the home network. */
+  home: string[];
+  /** On a private VPN, which also works away from home. */
+  vpn: string[];
+}
+
+/**
+ * Addresses other devices can use, leaving out virtual adapters. The server's
+ * own list (backend/src/lib/addresses.ts) sorts them the same way.
+ */
+export function shareAddresses(): ShareAddresses {
+  const found: ShareAddresses = { home: [], vpn: [] };
   for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
-    if (/vethernet|wsl|virtualbox|vmware|hyper-v|loopback|docker/i.test(name)) continue;
+    const vpnAdapter = VPN_ADAPTER.test(name);
+    if (!vpnAdapter && /vethernet|wsl|virtualbox|vmware|hyper-v|loopback|docker/i.test(name)) continue;
     for (const a of addresses ?? []) {
-      if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) found.push(a.address);
+      if (a.family !== 'IPv4' || a.internal || a.address.startsWith('169.254.')) continue;
+      (vpnAdapter || inTailscaleRange(a.address) ? found.vpn : found.home).push(a.address);
     }
   }
   return found;

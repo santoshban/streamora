@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Logo } from './components/Brand';
 import { TitleModalHost } from './components/DetailModal';
 import { Nav } from './components/Nav';
 import { PreviewProvider } from './components/Preview';
 import { Button, Spinner, ToastProvider } from './components/ui';
 import { ServerEventsProvider } from './lib/events';
+import { postToApp } from './lib/native';
 import { matchPath, RouterProvider, useRouter } from './lib/router';
 import { AdminLayout } from './pages/admin/Admin';
 import { HomePage, KindPage, MyListPage, NotFound, SearchPage } from './pages/Browse';
@@ -59,6 +60,10 @@ function Routes() {
 
 function Shell() {
   const { status, refresh, profile } = useSession();
+
+  useEffect(() => {
+    if (status === 'ready' && profile) postToApp({ type: 'signedIn' });
+  }, [status, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (status === 'loading') {
     return (

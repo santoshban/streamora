@@ -31,6 +31,7 @@ const envSchema = z.object({
   SESSION_SECRET: optionalString,
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  ADVERTISED_URLS: optionalString,
   PLUGINS_DIR: z.string().default('./plugins'),
   PLUGINS_HOT_RELOAD: bool.default(true),
   PLUGIN_CALL_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
@@ -60,6 +61,8 @@ export interface AppConfig {
   sessionSecret?: string;
   sessionTtlDays: number;
   corsOrigins: string[];
+  /** Extra addresses the apps should know about (a VPN name, a reverse proxy), as origins. */
+  advertisedUrls: string[];
   plugins: {
     dir: string;
     hotReload: boolean;
@@ -92,6 +95,23 @@ function defaultDatabasePath(dataDir: string): string {
   return !fs.existsSync(current) && fs.existsSync(legacy) ? legacy : current;
 }
 
+/** `ADVERTISED_URLS=http://pc.tail1234.ts.net:8484, https://media.example.com/` → origins. */
+function parseAdvertisedUrls(raw: string | undefined): string[] {
+  const urls = (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return urls.map((value) => {
+    let url: URL | undefined;
+    try {
+      url = new URL(value);
+    } catch {
+      // reported below
+    }
+    if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) {
+      throw new Error(`Invalid environment configuration:\n  • ADVERTISED_URLS: "${value}" is not an http(s) URL`);
+    }
+    return url.origin;
+  });
+}
+
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // Treat empty strings as "unset" so `.env.example` can be copied verbatim.
   const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v !== ''));
@@ -117,6 +137,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     corsOrigins: env.CORS_ORIGINS.split(',')
       .map((o) => o.trim())
       .filter(Boolean),
+    advertisedUrls: parseAdvertisedUrls(env.ADVERTISED_URLS),
     plugins: {
       dir: resolveFromRoot(env.PLUGINS_DIR),
       hotReload: env.PLUGINS_HOT_RELOAD,

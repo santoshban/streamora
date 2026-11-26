@@ -20,6 +20,7 @@
 
     <!-- Browse screen -->
     <string name="unreachable">Can’t reach the Streamora server at %1$s.</string>
+    <string name="unreachable_away">Away from home? The phone reaches your server through a VPN such as Tailscale: turn it on, then try again.</string>
     <string name="retry">Try again</string>
     <string name="change_server">Change server</string>
 

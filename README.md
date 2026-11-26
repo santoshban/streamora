@@ -106,6 +106,18 @@ npm run desktop:dist      # → desktop/release/Streamora-Setup-<version>.exe
 
 The Android app connects to a Streamora server on your network. You browse in the same web UI, and videos play in a native player: 4K HEVC, Dolby audio (AC3, E-AC3, TrueHD) and DTS usually play as they are, with no transcoding on the server. Download `Streamora-<version>.apk` from the [releases page](https://github.com/santoshban/streamora/releases), or see [android/README.md](android/README.md) to build it.
 
+### Watching away from home
+
+Streamora doesn't open your computer to the internet, so don't forward its port on your router: profiles aren't protected by a real login and the connection isn't encrypted. Use [Tailscale](https://tailscale.com/), a free private VPN, instead. It works even when your internet provider doesn't give you a public address (CGNAT), and only your own devices can reach the server.
+
+1. Install Tailscale on the computer that runs Streamora and on your phone, and sign in to the same account on both.
+2. In the desktop app, turn on **Let other devices on my network connect**. The tray menu then also shows **Copy address for away from home (VPN)** with the computer's Tailscale address. With `npm start`, the server already listens on every network.
+3. Open the Android app once at home and sign in to a profile. The app learns the server's Tailscale address. Away from home, keep Tailscale switched on in the phone and the app connects through it by itself, then moves back to the home network when you're back, without signing in again.
+
+You can also type the Tailscale address (`100.x.y.z:8484`) on the app's connect screen, or open it in the phone's browser.
+
+If the phone can't connect through Tailscale while it works at home, Windows Firewall may treat the Tailscale network as public. Allow Streamora for public networks in **Windows Security → Firewall & network protection → Allow an app through firewall**.
+
 ## Organising your media
 
 Streamora understands the common Plex/Jellyfin conventions. Folders per title work best, but loose files with release-style names are fine too.
@@ -153,6 +165,7 @@ Every setting is optional. Copy `.env.example` to `.env` in the project root; it
 | `SCAN_WATCH_POLLING` | `false` | Turn on for network shares (SMB/NFS), where file-change events don't arrive. |
 | `SESSION_SECRET` | random | Signs login cookies. Generated once and kept in `$DATA_DIR/.session-secret` if empty. |
 | `CORS_ORIGINS` | `http://localhost:5173` | Browser origins allowed to call the API during development. |
+| `ADVERTISED_URLS` | – | Extra addresses the Android app should know the server by, such as a Tailscale MagicDNS name. Home-network and Tailscale IP addresses are found automatically. |
 
 ## Playback
 
@@ -306,7 +319,7 @@ streamora/
 
 ## Security
 
-Streamora is designed for a trusted home network. Profile PINs keep children out of other profiles and admin pages, but they are not internet-grade authentication. If you want to reach it from outside your home, put it behind a VPN, or behind a reverse proxy with HTTPS and its own login.
+Streamora is designed for a trusted home network. Profile PINs keep children out of other profiles and admin pages, but they are not internet-grade authentication. To reach it from outside your home, use a private VPN such as Tailscale (see [Watching away from home](#watching-away-from-home)), or put it behind a reverse proxy with HTTPS and its own login. Don't forward its port on your router.
 
 ## Legal
 

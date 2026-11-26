@@ -10,7 +10,9 @@ interface AndroidBridge {
 export type AppMessage =
   /** `startSeconds: null` resumes from the saved position. */
   | { type: 'play'; fileId: number; startSeconds: number | null }
-  | { type: 'changeServer' };
+  | { type: 'changeServer' }
+  /** A profile is signed in: the app can now ask for the server's other addresses. */
+  | { type: 'signedIn' };
 
 const bridge = (window as unknown as { StreamoraAndroid?: AndroidBridge }).StreamoraAndroid;
 

@@ -9,6 +9,7 @@ import { EventBus } from './lib/events.js';
 import { detectFfmpeg, ffprobe, type FfmpegAvailability } from './lib/ffmpeg.js';
 import type { Logger } from './lib/logger.js';
 import { PinAttemptLimiter } from './lib/pin.js';
+import { resolveServerId } from './lib/server-id.js';
 import { resolveSessionSecret, SessionSigner } from './lib/session.js';
 import { PluginManager } from './plugins/manager.js';
 import { MetadataService } from './plugins/services/metadata.js';
@@ -43,6 +44,8 @@ export interface Services {
   artwork: ArtworkService;
   encoders: EncoderSelector;
   transcoder: TranscodeManager;
+  /** Stays with the data folder; see lib/server-id.ts. */
+  serverId: string;
   startedAt: Date;
   /** Starts file watchers and scheduled/startup scans (after plugins are loaded). */
   start(): void;
@@ -163,6 +166,7 @@ export async function createServices(config: AppConfig, log: Logger, options: Cr
     ),
     encoders,
     transcoder,
+    serverId: resolveServerId(config.dataDir),
     startedAt: new Date(),
     start() {
       scans.start();

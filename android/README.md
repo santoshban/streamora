@@ -24,6 +24,14 @@ The app loads the web UI from the server, so the server must accept connections 
 
 On first launch the app scans your Wi-Fi network for servers on ports 8484 to 8486. You can also type an address such as `192.168.1.20:8484`. To switch servers later, open the profile menu and choose **Change server**.
 
+### Away from home
+
+The app remembers every address of your server. After you sign in, it asks the server for them (`GET /api/server/addresses`): home-network addresses, Tailscale addresses and any `ADVERTISED_URLS`.
+- **At launch and whenever the phone's network changes**, it tries them all at once and uses the best one that answers: the home network when the phone is on Wi-Fi, otherwise the VPN, then the rest.
+- **Your sign-in carries over** between the addresses, because the server's ID (in `/api/health`) shows they lead to the same server.
+
+See [Watching away from home](../README.md#watching-away-from-home) for setting up Tailscale.
+
 ## Building
 
 You need JDK 17 or newer and the Android SDK with platform 37. Android Studio includes both. Without it:
@@ -38,7 +46,7 @@ Then, in this folder:
 ./gradlew assembleRelease     # Windows: gradlew.bat assembleRelease
 ```
 
-The APK is written to `release/Streamora-<version>.apk`, where the version is `appVersion` in `app/build.gradle.kts`. Install it with `adb install -r release/Streamora-0.1.0.apk`, or copy it to the phone and open it there; Android will ask you to allow installs from that app.
+The APK is written to `release/Streamora-<version>.apk`, where the version is `appVersion` in `app/build.gradle.kts`. Install it with `adb install -r release/Streamora-0.2.0.apk`, or copy it to the phone and open it there; Android will ask you to allow installs from that app.
 
 The release build is signed with your machine's Android debug key (`~/.android/debug.keystore`, created on the first build), so it installs without setting up a keystore. Android only installs an update over an existing copy when it is signed with the same key: if you build on another computer, uninstall the old app first, or copy that keystore across.
 

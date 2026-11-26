@@ -4,7 +4,7 @@ import { app, clipboard, dialog, Menu, nativeImage, nativeTheme, Notification, s
 // First: sets the app's folders before anything reads them.
 import { ASSETS_DIR, DATABASE_FILE, HOME_DIR, LOG_FILE } from './paths.js';
 import { activateDatabase, copyDatabase, findImportSource } from './import.js';
-import { lanAddresses } from './network.js';
+import { shareAddresses } from './network.js';
 import { StreamoraServer } from './server.js';
 import { settings, updateSettings } from './settings.js';
 import { getWindow, secureWebContents, setAppUrl, showWindow } from './window.js';
@@ -163,13 +163,14 @@ function showLog(): void {
 
 // ── Menus ────────────────────────────────────────────────────────────────────
 
+const AWAY_FROM_HOME_HELP = 'https://github.com/santoshban/streamora#watching-away-from-home';
+
 function appItems(): MenuItemConstructorOptions[] {
-  const addresses: MenuItemConstructorOptions[] = settings.shareOnNetwork
-    ? lanAddresses().map((address) => ({
-        label: `Copy address for other devices: http://${address}:${server.port}`,
-        click: () => clipboard.writeText(`http://${address}:${server.port}`),
-      }))
-    : [];
+  const { home, vpn } = settings.shareOnNetwork ? shareAddresses() : { home: [], vpn: [] };
+  const copy = (label: string, address: string): MenuItemConstructorOptions => {
+    const url = `http://${address}:${server.port}`;
+    return { label: `${label}: ${url}`, click: () => clipboard.writeText(url) };
+  };
   return [
     {
       label: 'Let other devices on my network connect',
@@ -177,7 +178,9 @@ function appItems(): MenuItemConstructorOptions[] {
       checked: settings.shareOnNetwork,
       click: () => void toggleSharing(),
     },
-    ...addresses,
+    ...home.map((address) => copy('Copy address for other devices', address)),
+    ...vpn.map((address) => copy('Copy address for away from home (VPN)', address)),
+    { label: 'Watching away from home…', click: () => void shell.openExternal(AWAY_FROM_HOME_HELP) },
     { type: 'separator' },
     {
       label: 'Keep running when the window is closed',
@@ -278,6 +281,14 @@ if (!app.requestSingleInstanceLock()) {
     tray.setToolTip('Streamora');
     tray.on('click', () => showWindow());
     refreshMenus();
+    // The addresses in the menu change when Wi-Fi or a VPN (Tailscale) connects.
+    let shownAddresses = JSON.stringify(shareAddresses());
+    setInterval(() => {
+      const now = JSON.stringify(shareAddresses());
+      if (now === shownAddresses) return;
+      shownAddresses = now;
+      refreshMenus();
+    }, 30_000);
     if (!startHidden) showWindow();
     await exclusive(startServer);
   });

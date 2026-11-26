@@ -97,7 +97,7 @@ class ConnectActivity : ComponentActivity() {
                 showError(getString(R.string.connect_failed, ServerAddress.display(url)))
                 return@launch
             }
-            store.serverUrl = server.url
+            store.choose(server)
             startActivity(
                 Intent(this@ConnectActivity, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),

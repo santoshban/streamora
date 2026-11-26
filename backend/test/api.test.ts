@@ -83,6 +83,16 @@ describe('API', () => {
     expect(me.json().profile.name).toBe('Owner');
   });
 
+  it("tells signed-in devices the server's ID and addresses", async () => {
+    const { serverId } = (await app.inject({ method: 'GET', url: '/api/health' })).json();
+    expect(serverId).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await app.inject({ method: 'GET', url: '/api/server/addresses' })).statusCode).toBe(401);
+    const res = await app.inject({ method: 'GET', url: '/api/server/addresses', ...as(owner) });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().serverId).toBe(serverId);
+    expect(Array.isArray(res.json().addresses)).toBe(true);
+  });
+
   it('only lets admins create further profiles', async () => {
     const anonymous = await app.inject({ method: 'POST', url: '/api/profiles', payload: { name: 'Sneaky' } });
     expect(anonymous.statusCode).toBe(401);
