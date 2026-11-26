@@ -25,6 +25,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8484),
+  /** API port of `npm run dev`; see devServer() below. */
+  DEV_PORT: z.coerce.number().int().min(1).max(65535).default(8483),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
   DATA_DIR: z.string().default('./data'),
   DATABASE_PATH: optionalString,
@@ -112,6 +114,15 @@ function parseAdvertisedUrls(raw: string | undefined): string[] {
   });
 }
 
+/**
+ * Started by `npm run dev` (npm names the running script in the environment).
+ * The dev server then listens on DEV_PORT instead of PORT, so it never fights
+ * the desktop app or `npm start` over 8484, which phones look for.
+ */
+export function devServer(source: NodeJS.ProcessEnv): boolean {
+  return source.npm_lifecycle_event === 'dev' && source.npm_package_name === '@streamora/backend';
+}
+
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // Treat empty strings as "unset" so `.env.example` can be copied verbatim.
   const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v !== ''));
@@ -127,7 +138,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     env: env.NODE_ENV,
     isDev: env.NODE_ENV === 'development',
     host: env.HOST,
-    port: env.PORT,
+    port: devServer(source) ? env.DEV_PORT : env.PORT,
     logLevel: env.LOG_LEVEL,
     dataDir,
     databasePath: env.DATABASE_PATH ? resolveFromRoot(env.DATABASE_PATH) : defaultDatabasePath(dataDir),

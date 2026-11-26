@@ -183,6 +183,7 @@ Every setting is optional. Copy `.env.example` to `.env` in the project root; it
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `8484` | Port of the API server and of the built web UI. |
+| `DEV_PORT` | `8483` | API port while `npm run dev` runs, so it never clashes with the desktop app or `npm start` on 8484. The Vite dev server follows it. |
 | `DATA_DIR` | `./data` | Where the database, artwork cache, plugin data and transcodes live. |
 | `TMDB_API_KEY` | – | Seeds the TMDB plugin's key. A value saved in Admin → Plugins takes priority. |
 | `HW_ACCEL` | `auto` | Video encoder: `auto`, `nvenc`, `qsv`, `vaapi`, `videotoolbox` or `none` (software). `auto` test-encodes and picks the first that works. |
@@ -312,7 +313,7 @@ Setting types (`string`, `secret`, `url`, `number`, `boolean`, `select`, `list`,
 ## Development
 
 ```bash
-npm run dev          # API with auto-restart (:8484) + Vite dev server (:5173)
+npm run dev          # API with auto-restart (:8483, DEV_PORT) + Vite dev server (:5173)
 npm test             # Vitest. Streaming tests need ffmpeg on the PATH.
 npm run typecheck    # Type-check every package
 npm run build        # Build web UI and server

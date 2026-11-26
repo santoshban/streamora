@@ -40,6 +40,14 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error('Fatal: Streamora failed to start\n', err);
+  if ((err as NodeJS.ErrnoException)?.code === 'EADDRINUSE') {
+    const { port } = err as NodeJS.ErrnoException & { port?: number };
+    console.error(
+      `Fatal: port ${port ?? ''} is already in use. Another Streamora (the desktop app, or a second \`npm start\`) ` +
+        'or another program is listening there. Quit it, or choose another port with PORT (DEV_PORT for `npm run dev`).',
+    );
+  } else {
+    console.error('Fatal: Streamora failed to start\n', err);
+  }
   process.exit(1);
 });

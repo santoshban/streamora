@@ -35,3 +35,20 @@ describe('default database path', () => {
     expect(loadConfig({ NODE_ENV: 'test', DATA_DIR: dataDir, DATABASE_PATH: custom }).databasePath).toBe(custom);
   });
 });
+
+describe('ports', () => {
+  const dev = { npm_lifecycle_event: 'dev', npm_package_name: '@streamora/backend' };
+
+  it('serves on PORT normally', () => {
+    expect(loadConfig({ NODE_ENV: 'test', PORT: '9000' }).port).toBe(9000);
+  });
+
+  it('serves `npm run dev` on DEV_PORT, away from the desktop app', () => {
+    expect(loadConfig({ NODE_ENV: 'test', PORT: '8484', ...dev }).port).toBe(8483);
+    expect(loadConfig({ NODE_ENV: 'test', PORT: '8484', DEV_PORT: '9100', ...dev }).port).toBe(9100);
+  });
+
+  it('does not treat other npm scripts as the dev server', () => {
+    expect(loadConfig({ NODE_ENV: 'test', npm_lifecycle_event: 'start', npm_package_name: '@streamora/backend' }).port).toBe(8484);
+  });
+});
