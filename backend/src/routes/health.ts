@@ -2,7 +2,7 @@ import os from 'node:os';
 import { count } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { profiles } from '../db/schema.js';
-import { reachableAddresses } from '../lib/addresses.js';
+import { isLocalOnly, reachableAddresses } from '../lib/addresses.js';
 import { requireProfile } from '../lib/auth.js';
 import { SERVER_VERSION } from '../version.js';
 
@@ -26,12 +26,15 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  // The Android app remembers these, so it can switch between the home network
-  // and a VPN. Only for signed-in devices: they reveal the computer's addresses.
+  // Shown under "Connect a device", and remembered by the Android app so it can
+  // switch between the home network and a VPN. Only for signed-in devices: they
+  // reveal the computer's addresses.
   app.get('/server/addresses', { preHandler: requireProfile }, async () => {
     const { config, serverId } = app.services;
     return {
       serverId,
+      /** `local`: other devices can't connect at all (the desktop app's sharing is off). */
+      listening: isLocalOnly(config.host) ? 'local' : 'network',
       addresses: reachableAddresses(os.networkInterfaces(), config.host, config.port, config.advertisedUrls),
     };
   });

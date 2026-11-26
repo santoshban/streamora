@@ -105,6 +105,14 @@ async function toggleSharing(): Promise<void> {
   });
   // Also puts the checkmark back when the change was not possible right now.
   refreshMenus();
+  const address = shareAddresses().home[0];
+  if (settings.shareOnNetwork && address && server.port && Notification.isSupported()) {
+    new Notification({
+      title: 'Phones and tablets can connect now',
+      body: `Address: http://${address}:${server.port}\nYou can find it again in Streamora under your profile menu → Connect a device.`,
+      icon: path.join(ASSETS_DIR, 'icon.png'),
+    }).show();
+  }
 }
 
 async function importData(): Promise<void> {

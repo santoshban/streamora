@@ -8,7 +8,8 @@ import { Link, useRouter } from '../lib/router';
 import type { Card } from '../lib/types';
 import { useSession } from '../state/session';
 import { Avatar, Logo } from './Brand';
-import { BellIcon, GearIcon, LogOutIcon, PencilIcon, SearchIcon, ServerIcon, UsersIcon, XIcon } from './Icons';
+import { ConnectDeviceDialog } from './ConnectDevice';
+import { BellIcon, GearIcon, LogOutIcon, PencilIcon, PhoneIcon, SearchIcon, ServerIcon, UsersIcon, XIcon } from './Icons';
 import { ProfileEditor } from './ProfileEditor';
 import { useOpenTitle } from './titleActions';
 
@@ -26,6 +27,7 @@ export function Nav() {
   const { profile, updateProfile } = useSession();
   const { scrolled, down } = useScrollState(0);
   const [editing, setEditing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const chipsHidden = scrolled && down;
 
   if (!profile) return null;
@@ -49,7 +51,7 @@ export function Nav() {
             onSearch={(q) => navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/', { replace: path === '/search' })}
           />
           <Notifications />
-          <AccountMenu onEdit={() => setEditing(true)} />
+          <AccountMenu onEdit={() => setEditing(true)} onConnect={() => setConnecting(true)} />
         </div>
       </nav>
 
@@ -85,6 +87,7 @@ export function Nav() {
       </div>
 
       {editing && <ProfileEditor profile={profile} asAdmin={false} onClose={() => setEditing(false)} onSaved={updateProfile} />}
+      {connecting && <ConnectDeviceDialog onClose={() => setConnecting(false)} />}
     </header>
   );
 }
@@ -237,7 +240,7 @@ function Notifications() {
 }
 
 /** Avatar + caret; opens on hover (mouse) or click, with Netflix's arrowed dark menu. */
-function AccountMenu({ onEdit }: { onEdit: () => void }) {
+function AccountMenu({ onEdit, onConnect }: { onEdit: () => void; onConnect: () => void }) {
   const { navigate } = useRouter();
   const { profile, switchProfile, signOut } = useSession();
   const hover = useMediaQuery(HOVER_QUERY);
@@ -295,9 +298,13 @@ function AccountMenu({ onEdit }: { onEdit: () => void }) {
                 Manage server
               </MenuItem>
             )}
-            {inAndroidApp && (
+            {inAndroidApp ? (
               <MenuItem icon={<ServerIcon size={18} />} onClick={run(() => postToApp({ type: 'changeServer' }))}>
                 Change server
+              </MenuItem>
+            ) : (
+              <MenuItem icon={<PhoneIcon size={18} />} onClick={run(onConnect)}>
+                Connect a device
               </MenuItem>
             )}
           </div>

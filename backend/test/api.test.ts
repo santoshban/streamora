@@ -90,6 +90,8 @@ describe('API', () => {
     const res = await app.inject({ method: 'GET', url: '/api/server/addresses', ...as(owner) });
     expect(res.statusCode).toBe(200);
     expect(res.json().serverId).toBe(serverId);
+    // The test config keeps the default HOST=0.0.0.0.
+    expect(res.json().listening).toBe('network');
     expect(Array.isArray(res.json().addresses)).toBe(true);
   });
 

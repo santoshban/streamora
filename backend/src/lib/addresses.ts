@@ -16,6 +16,9 @@ const VIRTUAL_ADAPTER = /vethernet|wsl|virtualbox|vmware|hyper-v|loopback|docker
 const VPN_ADAPTER = /tailscale|zerotier|wireguard|^wg\d|^zt/i;
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/** Whether only this computer can connect (the desktop app's sharing is off). */
+export const isLocalOnly = (host: string): boolean => LOOPBACK_HOSTS.has(host);
 const ALL_INTERFACES = new Set(['0.0.0.0', '::', '']);
 
 const octets = (address: string) => address.split('.').map(Number);

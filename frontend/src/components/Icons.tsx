@@ -134,6 +134,12 @@ export const UsersIcon = make(
     <path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" />
   </>,
 );
+export const PhoneIcon = make(
+  <>
+    <rect x="6" y="2" width="12" height="20" rx="2" />
+    <path d="M11 18h2" />
+  </>,
+);
 export const ServerIcon = make(
   <>
     <rect x="3" y="3" width="18" height="8" rx="2" />
