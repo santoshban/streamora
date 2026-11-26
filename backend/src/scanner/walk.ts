@@ -1,7 +1,20 @@
 import type { Dirent } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { IGNORE_MARKERS, isExtraFile, isSkippedDir, isVideoFile } from '../media/extensions.js';
+import { IGNORE_MARKERS, isAudioFile, isExtraFile, isSkippedDir, isSkippedMusicDir, isVideoFile } from '../media/extensions.js';
+
+/** Which files a walk collects and which folders it never enters. */
+export interface WalkFilter {
+  accept(file: string): boolean;
+  skipDir(name: string): boolean;
+}
+
+export const VIDEO_FILTER: WalkFilter = {
+  accept: (file) => isVideoFile(file) && !isExtraFile(path.basename(file)),
+  skipDir: isSkippedDir,
+};
+
+export const MUSIC_FILTER: WalkFilter = { accept: isAudioFile, skipDir: isSkippedMusicDir };
 
 export interface WalkedFile {
   path: string;
@@ -31,7 +44,10 @@ class Walker {
   private readonly visited = new Set<string>();
   private steps = 0;
 
-  constructor(private readonly signal?: AbortSignal) {}
+  constructor(
+    private readonly signal?: AbortSignal,
+    private readonly filter: WalkFilter = VIDEO_FILTER,
+  ) {}
 
   private error(message: string): void {
     if (this.result.errors.length < MAX_ERRORS) this.result.errors.push(message);
@@ -69,7 +85,7 @@ class Walker {
         isFile = !!st?.isFile();
       }
       if (isDir) {
-        if (!isSkippedDir(entry.name)) await this.walkDir(full, depth + 1);
+        if (!this.filter.skipDir(entry.name)) await this.walkDir(full, depth + 1);
       } else if (isFile) {
         await this.addFile(full);
       }
@@ -77,7 +93,7 @@ class Walker {
   }
 
   async addFile(file: string): Promise<void> {
-    if (!isVideoFile(file) || isExtraFile(path.basename(file))) return;
+    if (!this.filter.accept(file)) return;
     try {
       const st = await fs.stat(file);
       if (st.isFile()) this.result.files.push({ path: file, size: st.size, mtimeMs: Math.floor(st.mtimeMs) });
@@ -87,9 +103,9 @@ class Walker {
   }
 }
 
-/** Recursively lists video files under every library root. */
-export async function walkRoots(roots: string[], signal?: AbortSignal): Promise<WalkResult> {
-  const walker = new Walker(signal);
+/** Recursively lists video (or, with MUSIC_FILTER, audio) files under every library root. */
+export async function walkRoots(roots: string[], signal?: AbortSignal, filter?: WalkFilter): Promise<WalkResult> {
+  const walker = new Walker(signal, filter);
   for (const root of roots) {
     try {
       const st = await fs.stat(root);
@@ -108,8 +124,12 @@ export async function walkRoots(roots: string[], signal?: AbortSignal): Promise<
  * Walks only `targets` (files or folders that changed). Paths that no longer
  * exist are returned in `gone`.
  */
-export async function walkTargets(targets: string[], signal?: AbortSignal): Promise<WalkResult & { gone: string[] }> {
-  const walker = new Walker(signal);
+export async function walkTargets(
+  targets: string[],
+  signal?: AbortSignal,
+  filter?: WalkFilter,
+): Promise<WalkResult & { gone: string[] }> {
+  const walker = new Walker(signal, filter);
   const gone: string[] = [];
   for (const target of targets) {
     const st = await fs.stat(target).catch(() => null);

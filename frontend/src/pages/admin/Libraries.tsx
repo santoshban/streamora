@@ -6,6 +6,7 @@ import { useServerEvents } from '../../lib/events';
 import { formatBytes, timeAgo } from '../../lib/format';
 import { useAsync } from '../../lib/hooks';
 import { useRouter } from '../../lib/router';
+import { NoteIcon } from '../../music/icons';
 import type { FolderListing, Library, LibraryType, PluginSummary, ScanProgress, ScanStatus } from '../../lib/types';
 
 /** A file ffprobe could not read; the catalog hides it until it changes on disk. */
@@ -18,7 +19,18 @@ interface UnplayableFile {
   title: string | null;
 }
 
-const TYPE_LABEL: Record<LibraryType, string> = { movies: 'Movies', shows: 'TV Shows', anime: 'Anime' };
+const TYPE_LABEL: Record<LibraryType, string> = { movies: 'Movies', shows: 'TV Shows', anime: 'Anime', music: 'Music' };
+
+function TypeIcon({ type, size }: { type: LibraryType; size: number }) {
+  if (type === 'movies') return <FilmIcon size={size} />;
+  if (type === 'music') return <NoteIcon size={size} />;
+  return <TvIcon size={size} />;
+}
+
+function countsLabel(lib: Library): string {
+  if (lib.type === 'music') return `${lib.counts.albums ?? 0} albums · ${lib.counts.tracks ?? 0} songs`;
+  return lib.type === 'movies' ? `${lib.counts.movies} movies` : `${lib.counts.shows} shows`;
+}
 const PHASE_LABEL: Record<ScanProgress['phase'], string> = {
   discovering: 'Looking for files',
   probing: 'Reading media info',
@@ -67,7 +79,7 @@ export function LibrariesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Libraries</h1>
-          <p className="text-sm text-neutral-400">Folders Streamora scans for movies and shows. Changes are picked up automatically when watching is on.</p>
+          <p className="text-sm text-neutral-400">Folders Streamora scans for movies, shows and music. Changes are picked up automatically when watching is on.</p>
         </div>
         <Button variant="brand" onClick={() => setEditing('new')}>
           Add library
@@ -90,13 +102,13 @@ export function LibrariesPage() {
             <li key={lib.id} className="rounded-lg bg-neutral-900 p-5 ring-1 ring-white/10">
               <div className="flex flex-wrap items-start gap-4">
                 <div className="grid size-12 place-items-center rounded-md bg-neutral-800 text-neutral-300">
-                  {lib.type === 'movies' ? <FilmIcon size={24} /> : <TvIcon size={24} />}
+                  <TypeIcon type={lib.type} size={24} />
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold">{lib.name}</h2>
                     <Badge tone="solid">{TYPE_LABEL[lib.type]}</Badge>
-                    <Badge>{lib.language}</Badge>
+                    {lib.type !== 'music' && <Badge>{lib.language}</Badge>}
                     {status?.watching ? <Badge tone="green">Watching</Badge> : <Badge>Not watching</Badge>}
                   </div>
                   {lib.paths.map((p) => (
@@ -105,7 +117,7 @@ export function LibrariesPage() {
                     </p>
                   ))}
                   <p className="text-sm text-neutral-400">
-                    {lib.type === 'movies' ? `${lib.counts.movies} movies` : `${lib.counts.shows} shows`} · scanned {timeAgo(lib.lastScannedAt)}
+                    {countsLabel(lib)} · scanned {timeAgo(lib.lastScannedAt)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -118,8 +130,13 @@ export function LibrariesPage() {
                       <Button size="sm" onClick={() => void scan(lib)}>
                         <RefreshIcon size={14} /> Scan
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => void scan(lib, true)} title="Re-run metadata agents for every title">
-                        Refresh metadata
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void scan(lib, true)}
+                        title={lib.type === 'music' ? 'Read the tags of every song again' : 'Re-run metadata agents for every title'}
+                      >
+                        {lib.type === 'music' ? 'Re-read tags' : 'Refresh metadata'}
                       </Button>
                     </>
                   )}
@@ -303,7 +320,7 @@ function LibraryDialog({ library, onClose, onSaved }: { library: Library | null;
         {!library && (
           <fieldset className="space-y-1.5">
             <legend className="text-sm font-medium text-neutral-200">Type</legend>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(Object.keys(TYPE_LABEL) as LibraryType[]).map((t) => (
                 <button
                   key={t}
@@ -314,7 +331,7 @@ function LibraryDialog({ library, onClose, onSaved }: { library: Library | null;
                   }}
                   className={`flex items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold ring-1 ${type === t ? 'bg-white text-black ring-white' : 'bg-neutral-800 ring-white/10 hover:bg-neutral-700'}`}
                 >
-                  {t === 'movies' ? <FilmIcon size={18} /> : <TvIcon size={18} />}
+                  <TypeIcon type={t} size={18} />
                   {TYPE_LABEL[t]}
                 </button>
               ))}
@@ -344,16 +361,25 @@ function LibraryDialog({ library, onClose, onSaved }: { library: Library | null;
           </Button>
         </fieldset>
 
+        {type === 'music' && (
+          <p className="rounded-md bg-neutral-800/60 p-3 text-sm text-neutral-300">
+            Songs are filed by their tags (title, artist, album, track number). Untagged files work too, laid out as{' '}
+            <code className="text-neutral-100">Artist/Album/01 - Title.mp3</code>. Covers come from <code className="text-neutral-100">cover.jpg</code> or{' '}
+            <code className="text-neutral-100">folder.jpg</code>, or from art inside the files; lyrics from <code className="text-neutral-100">.lrc</code> files.
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Metadata language" hint="Titles, synopses and artwork are fetched in this language when available.">
-            <select className={inputClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
-              {[...new Set([language, ...METADATA_LANGUAGES])].map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {type !== 'music' && (
+            <Field label="Metadata language" hint="Titles, synopses and artwork are fetched in this language when available.">
+              <select className={inputClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                {[...new Set([language, ...METADATA_LANGUAGES])].map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <label className="flex items-start justify-between gap-3 rounded-md bg-neutral-800/60 p-3">
             <span>
               <span className="block text-sm font-medium">Watch for changes</span>
@@ -363,7 +389,7 @@ function LibraryDialog({ library, onClose, onSaved }: { library: Library | null;
           </label>
         </div>
 
-        {metadataPlugins.length > 0 && (
+        {metadataPlugins.length > 0 && type !== 'music' && (
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-neutral-200">Metadata agents</legend>
             <label className="flex items-center gap-2 text-sm">

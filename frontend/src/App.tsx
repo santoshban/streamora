@@ -5,6 +5,8 @@ import { Nav } from './components/Nav';
 import { PreviewProvider } from './components/Preview';
 import { Button, Spinner, ToastProvider } from './components/ui';
 import { ServerEventsProvider } from './lib/events';
+import { MusicProvider, useOptionalPlayer } from './music/context';
+import { MiniPlayer } from './music/MiniPlayer';
 import { postToApp } from './lib/native';
 import { matchPath, RouterProvider, useRouter } from './lib/router';
 import { AdminLayout } from './pages/admin/Admin';
@@ -14,6 +16,8 @@ import { SessionProvider, useSession } from './state/session';
 
 // hls.js is large: load the player only when someone presses Play.
 const PlayerPage = lazy(() => import('./pages/Player'));
+// The music section (its player engine lives in MusicProvider, so music plays on everywhere).
+const MusicApp = lazy(() => import('./music/MusicApp'));
 
 function FullScreenMessage({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">{children}</div>;
@@ -21,8 +25,27 @@ function FullScreenMessage({ children }: { children: React.ReactNode }) {
 
 function Routes() {
   const { path } = useRouter();
+  const music = useOptionalPlayer();
 
   const watch = matchPath('/watch/:id', path);
+  // A film or episode starting stops the music.
+  useEffect(() => {
+    if (watch) music?.pause();
+  }, [!!watch, music]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (path === '/music' || path.startsWith('/music/')) {
+    return (
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 grid place-items-center bg-[#030303]">
+            <Spinner size={48} className="text-white/60" />
+          </div>
+        }
+      >
+        <MusicApp />
+      </Suspense>
+    );
+  }
   if (watch) {
     return (
       <Suspense
@@ -54,6 +77,7 @@ function Routes() {
         {page}
       </main>
       <TitleModalHost />
+      <MiniPlayer />
     </PreviewProvider>
   );
 }
@@ -90,7 +114,9 @@ function Shell() {
   return (
     // Remount everything when the profile changes so no state leaks between profiles.
     <ServerEventsProvider key={profile?.id} enabled>
-      <Routes />
+      <MusicProvider profileId={profile?.id ?? 0}>
+        <Routes />
+      </MusicProvider>
     </ServerEventsProvider>
   );
 }

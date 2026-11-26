@@ -19,6 +19,11 @@ export interface MediaProbe {
   audioCodec: string | null;
   audioChannels: number | null;
   streams: MediaStreamInfo[];
+  /**
+   * Container and primary audio stream tags with lower-case keys (title, artist,
+   * album, track...). Read by the music scanner; video scans ignore them.
+   */
+  tags?: Record<string, string>;
 }
 
 type RawStream = NonNullable<FfprobeResult['streams']>[number];
@@ -143,6 +148,20 @@ export function primaryStream(streams: MediaStreamInfo[], type: 'video' | 'audio
   return ofType.find((s) => s.default) ?? ofType[0];
 }
 
+/** Format tags win over stream tags; Ogg/Opus files keep theirs on the audio stream only. */
+export function mergedTags(result: FfprobeResult, audioIndex?: number): Record<string, string> {
+  const out: Record<string, string> = {};
+  const add = (tags: Record<string, string> | undefined) => {
+    for (const [k, v] of Object.entries(tags ?? {})) {
+      const key = k.toLowerCase();
+      if (typeof v === 'string' && v.trim() !== '' && !(key in out)) out[key] = v.trim();
+    }
+  };
+  add(result.format?.tags);
+  add(result.streams?.find((s) => s.index === audioIndex)?.tags);
+  return out;
+}
+
 export function normalizeProbe(result: FfprobeResult, filePath: string): MediaProbe {
   const rawStreams = Array.isArray(result.streams) ? result.streams : [];
   const streams = rawStreams.map(normalizeStream);
@@ -171,5 +190,6 @@ export function normalizeProbe(result: FfprobeResult, filePath: string): MediaPr
     audioCodec: audio?.codec ?? null,
     audioChannels: audio?.channels ?? null,
     streams,
+    tags: mergedTags(result, audio?.index),
   };
 }

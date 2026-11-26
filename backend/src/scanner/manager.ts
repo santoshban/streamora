@@ -132,6 +132,7 @@ export class ScanManager {
       s.watcher = new LibraryWatcher({
         paths: lib.paths,
         usePolling: this.opts.watchPolling,
+        music: lib.type === 'music',
         log: this.opts.log.child({ library: lib.id, module: 'watcher' }),
         debounceMs: this.opts.watchDebounceMs,
         onChanges: (paths) => this.requestPartial(lib.id, paths),

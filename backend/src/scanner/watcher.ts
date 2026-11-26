@@ -2,7 +2,15 @@ import path from 'node:path';
 import { watch, type FSWatcher } from 'chokidar';
 import type { Logger } from '../lib/logger.js';
 import { isPathInside } from '../lib/paths.js';
-import { isSidecarMetadataFile, isSkippedDir, isSubtitleFile, isVideoFile } from '../media/extensions.js';
+import {
+  isAudioFile,
+  isLyricsFile,
+  isSidecarMetadataFile,
+  isSkippedDir,
+  isSkippedMusicDir,
+  isSubtitleFile,
+  isVideoFile,
+} from '../media/extensions.js';
 
 export interface WatcherOptions {
   paths: string[];
@@ -14,9 +22,12 @@ export interface WatcherOptions {
   debounceMs?: number;
   /** Flush even if events keep arriving (e.g. a long copy of a season). */
   maxWaitMs?: number;
+  /** Music library: audio and .lrc files matter, and only system folders are skipped. */
+  music?: boolean;
 }
 
-const isRelevantFile = (p: string) => isVideoFile(p) || isSubtitleFile(p) || isSidecarMetadataFile(p);
+const isRelevantVideoFile = (p: string) => isVideoFile(p) || isSubtitleFile(p) || isSidecarMetadataFile(p);
+const isRelevantMusicFile = (p: string) => isAudioFile(p) || isLyricsFile(p) || isSidecarMetadataFile(p);
 
 /** Watches a library's folders and reports changed paths in batches. */
 export class LibraryWatcher {
@@ -30,12 +41,14 @@ export class LibraryWatcher {
   start(): void {
     const { paths, usePolling, log } = this.opts;
     const roots = paths.map((p) => path.resolve(p));
+    const isRelevantFile = this.opts.music ? isRelevantMusicFile : isRelevantVideoFile;
+    const skipDir = this.opts.music ? isSkippedMusicDir : isSkippedDir;
 
     const ignored = (p: string, stats?: { isFile(): boolean }) => {
       const root = roots.find((r) => isPathInside(p, r));
       if (!root) return false;
       const rel = path.relative(root, p);
-      if (rel && rel.split(/[\\/]/).some((part, i, all) => (i < all.length - 1 || !stats?.isFile()) && isSkippedDir(part))) {
+      if (rel && rel.split(/[\\/]/).some((part, i, all) => (i < all.length - 1 || !stats?.isFile()) && skipDir(part))) {
         return true;
       }
       return !!stats?.isFile() && !isRelevantFile(p);

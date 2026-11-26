@@ -5,7 +5,7 @@
 <h1 align="center">Streamora</h1>
 
 <p align="center">
-  A self-hosted, Netflix-style media server for the movies and shows you already own.<br>
+  A self-hosted, Netflix-style media server for the movies, shows and music you already own.<br>
   Point it at your folders and get artwork, profiles, resume and smooth playback in any browser.
 </p>
 
@@ -36,8 +36,15 @@
 - **Transcode** when needed, using hardware encoders when available (NVIDIA NVENC, Intel Quick Sync, VAAPI, Apple VideoToolbox) and falling back to software x264
 - Switch audio track, subtitles, quality or version without losing your place; resume where you left off; next-episode countdown; keyboard shortcuts
 
+**Music**
+- A music section laid out like YouTube Music: Home with Quick picks, Listen again and generated mixes; Explore with moods & genres; a Library of playlists, songs, albums and artists
+- Album, artist, playlist and search pages; Liked music; playlists you can reorder; play history per profile
+- Player bar plus a full player page with **Up next** (drag to reorder, autoplay of similar songs), **synced lyrics** from `.lrc` files and **Related**
+- Shuffle, repeat, radio from any song, album or artist, keyboard shortcuts and your OS media keys; music keeps playing while you browse movies
+- Plays MP3, AAC/M4A, FLAC, Ogg/Opus and WAV directly, and converts the rest (WMA, ALAC, APE, …) on the fly
+
 **Library management**
-- Movies and TV libraries with Plex/Jellyfin-style naming, which also copes with messy release names
+- Movies, TV and music libraries with Plex/Jellyfin-style naming, which also copes with messy release names
 - Picks up new files automatically through file watching and scheduled scans, and lists unreadable files
 - Admin pages for libraries (with a folder picker), plugins, active streams, scans and profiles
 - **Fix match** for titles that were identified wrongly, plus metadata locking
@@ -147,6 +154,27 @@ TV Shows/
 - **Offline metadata:** Kodi/Plex `.nfo` files plus `poster.jpg`, `fanart.jpg` and `clearlogo.png` are read before anything is fetched online.
 
 Supported containers: MKV, MP4/M4V, MOV, AVI, WMV, WebM, TS/M2TS, MPEG, FLV, OGV, 3GP, DivX and ASF.
+
+### Music
+
+Add a library of type **Music**. Songs are filed by their tags (title, artist, album artist, album, track and disc number, year, genre), so any folder layout works. Untagged files fall back to the folders around them:
+
+```text
+Music/
+├── Aurora Fields/
+│   └── Northern Lights (2021)/
+│       ├── 01 - Midnight Drive.flac
+│       ├── 02 - Glass Rivers.mp3
+│       ├── 02 - Glass Rivers.lrc     ← synced lyrics, shown in the player
+│       └── cover.jpg                 ← album art (or art embedded in the files)
+├── Neon Harbor - Coastline (2019)/   ← "Artist - Album" folders work too
+│   └── CD1/01 Salt Air.mp3           ← CD1 / Disc 2 folders become disc numbers
+└── Summer Hits/                      ← different artists, no album artist: "Various Artists"
+```
+
+- **Album art:** `cover`, `folder`, `front` or `album` images in the album folder, otherwise the picture inside the files. An `artist.jpg` or `folder.jpg` in the artist's folder becomes their photo.
+- **Lyrics:** a `.lrc` file with the same name as the song (synced), or lyrics stored in the file's tags.
+- **Formats:** MP3, FLAC, M4A/AAC, ALAC, Ogg Vorbis, Opus, WAV, AIFF, WMA, APE, WavPack, MKA and DSD files. Formats the browser can't play are converted to AAC while they play.
 
 ## Configuration
 

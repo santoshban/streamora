@@ -306,6 +306,110 @@ select option {
   background: #171717;
 }
 
+/* ── music (YouTube Music-style layout) ─────────────────────────────────────── */
+
+html.music-root,
+html.music-root body {
+  background: #030303;
+}
+html.music-root {
+  scrollbar-color: #4a4a4a #030303;
+  scrollbar-gutter: stable;
+}
+.music-app {
+  --music-top: 64px;
+  --music-bar: 0px;
+  --music-tabs: 0px;
+  --music-guide: 0px;
+}
+.music-app.has-player {
+  --music-bar: 72px;
+}
+.music-app[data-guide='full'] {
+  --music-guide: 240px;
+}
+.music-app[data-guide='mini'] {
+  --music-guide: 72px;
+}
+@media (max-width: 639px) {
+  .music-app {
+    --music-tabs: 56px;
+  }
+  .music-app.has-player {
+    --music-bar: 64px;
+  }
+}
+.music-main {
+  padding-top: var(--music-top);
+  padding-bottom: calc(var(--music-bar) + var(--music-tabs));
+  padding-left: var(--music-guide);
+}
+.music-guide {
+  top: var(--music-top);
+  bottom: var(--music-bar);
+}
+.music-player-bar {
+  bottom: var(--music-tabs);
+  height: var(--music-bar);
+}
+.music-now-playing {
+  top: var(--music-top);
+  bottom: calc(var(--music-bar) + var(--music-tabs));
+}
+@media (max-width: 935px) {
+  /* Phones and tablets: the player page covers everything. */
+  .music-now-playing {
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+  }
+}
+/* Logo block as wide as the guide, so the search box lines up with the page. */
+@media (min-width: 936px) {
+  .music-app[data-guide='full'] .music-topbar-left {
+    width: calc(var(--music-guide) - 16px);
+  }
+}
+
+/* Equalizer bars beside the song that is playing. */
+.music-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  color: #fff;
+}
+.music-bars > span {
+  width: 3px;
+  height: 30%;
+  border-radius: 1px;
+  background: currentColor;
+  animation: music-bar 0.95s ease-in-out infinite;
+}
+.music-bars > span:nth-child(2) {
+  animation-delay: -0.35s;
+}
+.music-bars > span:nth-child(3) {
+  animation-delay: -0.7s;
+}
+.music-bars-paused > span {
+  animation-play-state: paused;
+}
+@keyframes music-bar {
+  0%,
+  100% {
+    height: 25%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

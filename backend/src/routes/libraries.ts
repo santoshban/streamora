@@ -11,7 +11,7 @@ import { isPathInside } from '../lib/paths.js';
 import { numericIdParams, parseOrThrow } from '../lib/validation.js';
 import type { PluginManager } from '../plugins/manager.js';
 
-const libraryType = z.enum(['movies', 'shows', 'anime']);
+const libraryType = z.enum(['movies', 'shows', 'anime', 'music']);
 const language = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, 'must be a language tag such as en-US');
 
 const createSchema = z.strictObject({
@@ -88,7 +88,9 @@ function libraryCounts(db: DB): Map<number, { movies: number; shows: number }> {
   return map;
 }
 
-function toLibraryDto(lib: Library, counts?: { movies: number; shows: number }) {
+type MusicCounts = { albums: number; tracks: number; artists: number };
+
+function toLibraryDto(lib: Library, counts?: { movies: number; shows: number }, music?: MusicCounts) {
   return {
     id: lib.id,
     name: lib.name,
@@ -99,7 +101,10 @@ function toLibraryDto(lib: Library, counts?: { movies: number; shows: number }) 
     agents: lib.agents ?? null,
     lastScannedAt: lib.lastScannedAt?.toISOString() ?? null,
     createdAt: lib.createdAt.toISOString(),
-    counts: counts ?? { movies: 0, shows: 0 },
+    counts:
+      lib.type === 'music'
+        ? { movies: 0, shows: 0, ...(music ?? { albums: 0, tracks: 0, artists: 0 }) }
+        : (counts ?? { movies: 0, shows: 0 }),
   };
 }
 
@@ -114,13 +119,14 @@ function lastLine(error: string | null): string | null {
 }
 
 export const libraryRoutes: FastifyPluginAsync = async (app) => {
-  const { db, plugins, events } = app.services;
+  const { db, plugins, events, music } = app.services;
   const find = (id: number) => db.select().from(libraries).where(eq(libraries.id, id)).get();
 
   app.get('/libraries', { preHandler: requireProfile }, async () => {
     const counts = libraryCounts(db);
+    const musicCounts = music.libraryCounts();
     const rows = db.select().from(libraries).orderBy(libraries.name).all();
-    return { libraries: rows.map((l) => toLibraryDto(l, counts.get(l.id))) };
+    return { libraries: rows.map((l) => toLibraryDto(l, counts.get(l.id), musicCounts.get(l.id))) };
   });
 
   // Files ffprobe could not read (damaged, or a download that hasn't finished). The
@@ -154,7 +160,7 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = parseOrThrow(numericIdParams, request.params, 'library id');
     const lib = find(id);
     if (!lib) throw notFound('Library not found');
-    return { library: toLibraryDto(lib, libraryCounts(db).get(id)) };
+    return { library: toLibraryDto(lib, libraryCounts(db).get(id), music.libraryCounts().get(id)) };
   });
 
   app.post('/libraries', { preHandler: requireAdmin }, async (request, reply) => {
@@ -167,7 +173,8 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
         paths: await validatePaths(body.paths, db),
         language: body.language,
         watch: body.watch,
-        agents: validateAgents(body.agents, plugins) ?? null,
+        // Music libraries read tags; metadata agents never run for them.
+        agents: body.type === 'music' ? null : (validateAgents(body.agents, plugins) ?? null),
       })
       .returning()
       .get();
@@ -194,7 +201,7 @@ export const libraryRoutes: FastifyPluginAsync = async (app) => {
       .returning()
       .get();
     events.emit('library.changed', { libraryId: id, action: 'updated' });
-    return { library: toLibraryDto(updated, libraryCounts(db).get(id)) };
+    return { library: toLibraryDto(updated, libraryCounts(db).get(id), music.libraryCounts().get(id)) };
   });
 
   app.delete('/libraries/:id', { preHandler: requireAdmin }, async (request, reply) => {

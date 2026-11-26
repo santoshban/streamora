@@ -319,6 +319,168 @@ export const watchlist = sqliteTable(
   (t) => [primaryKey({ columns: [t.profileId, t.mediaItemId] })],
 );
 
+// ── music ────────────────────────────────────────────────────────────────────
+// Music libraries have their own tables: artists → albums → tracks, read from
+// file tags (falling back to Artist/Album/NN - Title folders).
+
+export const musicArtists = sqliteTable(
+  'music_artists',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    libraryId: integer('library_id')
+      .notNull()
+      .references(() => libraries.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    sortName: text('sort_name').notNull(),
+    /** Normalised name, so "The Beatles" and "the beatles" are one artist. */
+    matchKey: text('match_key').notNull(),
+    /** `artist.jpg` / `folder.jpg` in the artist's own folder. */
+    image: text('image'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('music_artists_identity_uq').on(t.libraryId, t.matchKey),
+    index('music_artists_sort_idx').on(t.sortName),
+  ],
+);
+
+export const musicAlbums = sqliteTable(
+  'music_albums',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    libraryId: integer('library_id')
+      .notNull()
+      .references(() => libraries.id, { onDelete: 'cascade' }),
+    /** Album artist ("Various Artists" for compilations). */
+    artistId: integer('artist_id')
+      .notNull()
+      .references(() => musicArtists.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    sortTitle: text('sort_title').notNull(),
+    matchKey: text('match_key').notNull(),
+    year: integer('year'),
+    genres: jsonArray<string>('genres'),
+    /** A folder image path, or `embedded:<trackId>` for artwork inside a track. */
+    cover: text('cover'),
+    folderPath: text('folder_path'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('music_albums_identity_uq').on(t.libraryId, t.artistId, t.matchKey),
+    index('music_albums_artist_idx').on(t.artistId),
+    index('music_albums_created_idx').on(t.createdAt),
+  ],
+);
+
+export const musicTracks = sqliteTable(
+  'music_tracks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    libraryId: integer('library_id')
+      .notNull()
+      .references(() => libraries.id, { onDelete: 'cascade' }),
+    albumId: integer('album_id')
+      .notNull()
+      .references(() => musicAlbums.id, { onDelete: 'cascade' }),
+    /** First credited artist; `artistName` keeps the full credit. */
+    artistId: integer('artist_id')
+      .notNull()
+      .references(() => musicArtists.id, { onDelete: 'cascade' }),
+    artistName: text('artist_name').notNull(),
+    title: text('title').notNull(),
+    sortTitle: text('sort_title').notNull(),
+    trackNumber: integer('track_number'),
+    discNumber: integer('disc_number'),
+    year: integer('year'),
+    genres: jsonArray<string>('genres'),
+    durationSeconds: real('duration_seconds'),
+    path: text('path').notNull(),
+    sizeBytes: integer('size_bytes').notNull().default(0),
+    mtimeMs: integer('mtime_ms').notNull().default(0),
+    container: text('container'),
+    codec: text('codec'),
+    bitrate: integer('bitrate'),
+    sampleRate: integer('sample_rate'),
+    channels: integer('channels'),
+    hasEmbeddedArt: integer('has_embedded_art', { mode: 'boolean' }).notNull().default(false),
+    probedAt: integer('probed_at', { mode: 'timestamp_ms' }),
+    probeError: text('probe_error'),
+    missing: integer('missing', { mode: 'boolean' }).notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('music_tracks_path_uq').on(t.path),
+    index('music_tracks_album_idx').on(t.albumId),
+    index('music_tracks_artist_idx').on(t.artistId),
+    index('music_tracks_library_idx').on(t.libraryId),
+  ],
+);
+
+export const musicLikes = sqliteTable(
+  'music_likes',
+  {
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    trackId: integer('track_id')
+      .notNull()
+      .references(() => musicTracks.id, { onDelete: 'cascade' }),
+    likedAt: integer('liked_at', { mode: 'timestamp_ms' }).notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.profileId, t.trackId] })],
+);
+
+/** Per-profile listening history: feeds Quick picks, Listen again and Top songs. */
+export const musicPlays = sqliteTable(
+  'music_plays',
+  {
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    trackId: integer('track_id')
+      .notNull()
+      .references(() => musicTracks.id, { onDelete: 'cascade' }),
+    playCount: integer('play_count').notNull().default(0),
+    lastPlayedAt: integer('last_played_at', { mode: 'timestamp_ms' }).notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.profileId, t.trackId] }), index('music_plays_recent_idx').on(t.profileId, t.lastPlayedAt)],
+);
+
+export const playlists = sqliteTable(
+  'playlists',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    profileId: integer('profile_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('playlists_profile_idx').on(t.profileId)],
+);
+
+/** Playlist entries; the same track may appear more than once. */
+export const playlistTracks = sqliteTable(
+  'playlist_tracks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    playlistId: integer('playlist_id')
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    trackId: integer('track_id')
+      .notNull()
+      .references(() => musicTracks.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    addedAt: integer('added_at', { mode: 'timestamp_ms' }).notNull().default(now),
+  },
+  (t) => [index('playlist_tracks_order_idx').on(t.playlistId, t.position)],
+);
+
 // ── plugins ──────────────────────────────────────────────────────────────────
 
 export const plugins = sqliteTable('plugins', {
@@ -365,3 +527,7 @@ export type MediaFile = typeof mediaFiles.$inferSelect;
 export type SubtitleTrackRow = typeof subtitleTracks.$inferSelect;
 export type WatchProgress = typeof watchProgress.$inferSelect;
 export type PluginRow = typeof plugins.$inferSelect;
+export type MusicArtist = typeof musicArtists.$inferSelect;
+export type MusicAlbum = typeof musicAlbums.$inferSelect;
+export type MusicTrack = typeof musicTracks.$inferSelect;
+export type Playlist = typeof playlists.$inferSelect;

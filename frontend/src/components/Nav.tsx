@@ -18,6 +18,7 @@ const LINKS = [
   { to: '/shows', label: 'Shows' },
   { to: '/movies', label: 'Movies' },
   { to: '/my-list', label: 'My List' },
+  { to: '/music', label: 'Music' },
 ];
 
 /** Netflix's header: transparent over a top gradient, solid #141414 once the page

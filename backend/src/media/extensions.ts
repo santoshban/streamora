@@ -5,6 +5,13 @@ export const VIDEO_EXTENSIONS = new Set([
   '.mpg', '.mpeg', '.flv', '.ogv', '.3gp', '.divx', '.asf',
 ]);
 
+export const AUDIO_EXTENSIONS = new Set([
+  '.mp3', '.flac', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.wav', '.wma', '.aif', '.aiff', '.ape', '.wv',
+  '.mka', '.alac', '.mpc', '.dsf', '.dff',
+]);
+/** Synced (`.lrc`) lyrics next to a track. */
+export const LYRICS_EXTENSIONS = new Set(['.lrc']);
+
 export const SUBTITLE_EXTENSIONS = new Set(['.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx', '.sup']);
 export const METADATA_EXTENSIONS = new Set(['.nfo']);
 export const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tbn']);
@@ -32,10 +39,22 @@ export const extOf = (p: string) => path.extname(p).toLowerCase();
 export const isVideoFile = (p: string) => VIDEO_EXTENSIONS.has(extOf(p));
 export const isSubtitleFile = (p: string) => SUBTITLE_EXTENSIONS.has(extOf(p));
 export const isSidecarMetadataFile = (p: string) => METADATA_EXTENSIONS.has(extOf(p)) || IMAGE_EXTENSIONS.has(extOf(p));
+export const isAudioFile = (p: string) => AUDIO_EXTENSIONS.has(extOf(p)) && !path.basename(p).startsWith('.');
+export const isLyricsFile = (p: string) => LYRICS_EXTENSIONS.has(extOf(p));
 
 export function isSkippedDir(name: string): boolean {
   const lower = name.toLowerCase();
   return lower.startsWith('.') || SKIPPED_DIRS.has(lower);
+}
+
+/** NAS/OS junk only: in music libraries "Bonus" or "Other" folders hold real tracks. */
+const SYSTEM_DIRS = new Set([
+  '@eadir', '.@__thumb', '#recycle', '#snapshot', '$recycle.bin', 'system volume information', 'lost+found',
+]);
+
+export function isSkippedMusicDir(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.startsWith('.') || SYSTEM_DIRS.has(lower);
 }
 
 /** `Movie-trailer.mkv`, `sample.mkv`, `Movie.sample.mkv` ... */

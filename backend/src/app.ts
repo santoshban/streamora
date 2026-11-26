@@ -14,6 +14,7 @@ import { adminPluginRoutes } from './routes/admin-plugins.js';
 import { eventRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
 import { libraryRoutes } from './routes/libraries.js';
+import { musicRoutes } from './routes/music.js';
 import { playbackRoutes } from './routes/playback.js';
 import { profileRoutes } from './routes/profiles.js';
 import { scanRoutes } from './routes/scans.js';
@@ -86,6 +87,7 @@ export async function buildApp(services: Services): Promise<FastifyInstance> {
       await api.register(playbackRoutes);
       await api.register(adminFsRoutes);
       await api.register(catalogRoutes);
+      await api.register(musicRoutes);
     },
     { prefix: '/api' },
   );

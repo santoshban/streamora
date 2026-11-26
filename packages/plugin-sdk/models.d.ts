@@ -2,7 +2,11 @@
 
 export type MediaKind = 'movie' | 'show';
 
-export type LibraryType = 'movies' | 'shows' | 'anime';
+/**
+ * `music` libraries are scanned by the server's own tag reader: metadata,
+ * subtitle and post-scan plugins are never called for them.
+ */
+export type LibraryType = 'movies' | 'shows' | 'anime' | 'music';
 
 /**
  * Artwork reference: either an absolute `http(s)://` URL or an absolute local

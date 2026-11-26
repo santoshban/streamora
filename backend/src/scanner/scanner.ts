@@ -21,6 +21,7 @@ import type { EventBus } from '../lib/events.js';
 import type { Logger } from '../lib/logger.js';
 import { isPathInside } from '../lib/paths.js';
 import { isInSkippedDir, isSidecarMetadataFile, isSubtitleFile, isVideoFile } from '../media/extensions.js';
+import { MusicScanner } from '../music/scanner.js';
 import { sortTitleOf } from '../media/parse.js';
 import type { MediaProbe } from '../media/probe.js';
 import type { MetadataService } from '../plugins/services/metadata.js';
@@ -135,7 +136,19 @@ function probeErrorSummary(file: string, error: string): string {
 const SIDECAR_SUBFOLDER = /^(?:subs?|subtitles?)$/i;
 
 export class LibraryScanner {
-  constructor(private readonly deps: ScannerDeps) {}
+  private readonly music: MusicScanner;
+
+  constructor(private readonly deps: ScannerDeps) {
+    this.music = new MusicScanner({
+      db: deps.db,
+      log: deps.log,
+      events: deps.events,
+      probe: deps.probe,
+      probeAvailable: deps.probeAvailable,
+      probeConcurrency: deps.probeConcurrency,
+      isProbeUnavailable: (err) => err instanceof ProbeUnavailableError,
+    });
+  }
 
   private get db(): DB {
     return this.deps.db;
@@ -151,6 +164,7 @@ export class LibraryScanner {
     signal: AbortSignal,
     onProgress: (p: ScanProgress) => void = () => undefined,
   ): Promise<ScanSummary> {
+    if (library.type === 'music') return this.music.scan(library, request, signal, onProgress);
     const startedAt = new Date();
     const state = new ScanState();
     const full = request.kind === 'full';

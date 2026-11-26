@@ -17,6 +17,8 @@ import { PostScanService } from './plugins/services/post-scan.js';
 import { StreamResolverService } from './plugins/services/streams.js';
 import { SubtitleService } from './plugins/services/subtitles.js';
 import { normalizeProbe, type MediaProbe } from './media/probe.js';
+import { MusicArtwork } from './music/artwork.js';
+import { MusicService } from './music/service.js';
 import { ScanManager } from './scanner/manager.js';
 import { LibraryScanner, ProbeUnavailableError } from './scanner/scanner.js';
 import { EncoderSelector } from './streaming/encoders.js';
@@ -42,6 +44,8 @@ export interface Services {
   catalog: CatalogService;
   trailers: TrailerService;
   artwork: ArtworkService;
+  music: MusicService;
+  musicArtwork: MusicArtwork;
   encoders: EncoderSelector;
   transcoder: TranscodeManager;
   /** Stays with the data folder; see lib/server-id.ts. */
@@ -163,6 +167,13 @@ export async function createServices(config: AppConfig, log: Logger, options: Cr
       () => database.db.select({ paths: libraries.paths }).from(libraries).all().flatMap((l) => l.paths),
       log.child({ module: 'artwork' }),
       options.fetchImpl,
+    ),
+    music: new MusicService(database.db),
+    musicArtwork: new MusicArtwork(
+      config.cacheDir,
+      () => (ffmpeg.ffmpeg ? config.media.ffmpegPath : null),
+      () => database.db.select({ paths: libraries.paths }).from(libraries).all().flatMap((l) => l.paths),
+      log.child({ module: 'music-art' }),
     ),
     encoders,
     transcoder,

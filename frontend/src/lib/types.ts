@@ -182,7 +182,7 @@ export type Quality = 'original' | '2160p' | '1080p' | '720p' | '480p';
 
 // ── admin ────────────────────────────────────────────────────────────────────
 
-export type LibraryType = 'movies' | 'shows' | 'anime';
+export type LibraryType = 'movies' | 'shows' | 'anime' | 'music';
 
 export interface Library {
   id: number;
@@ -194,7 +194,8 @@ export interface Library {
   agents: string[] | null;
   lastScannedAt: string | null;
   createdAt: string;
-  counts: { movies: number; shows: number };
+  /** Music libraries also report albums, songs and artists. */
+  counts: { movies: number; shows: number; albums?: number; tracks?: number; artists?: number };
 }
 
 export interface ScanProgress {
