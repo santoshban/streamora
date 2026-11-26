@@ -14,6 +14,8 @@ export interface ClientCapabilities {
   hdr: boolean;
   maxWidth?: number;
   maxHeight?: number;
+  /** The client switches audio tracks inside the file itself (the Android app), so direct play needn't use the default track. */
+  selectsAudioTrack?: boolean;
 }
 
 export const DEFAULT_CAPABILITIES: ClientCapabilities = {
@@ -151,7 +153,7 @@ export function decidePlayback(source: SourceInfo, request: DecisionRequest): Pl
     (caps.containers.includes(source.container) || (source.container === 'm4v' && caps.containers.includes('mp4')));
   if (!containerOk) reasons.push(`container ${source.container ?? 'unknown'} is not supported by this browser`);
   if (audio && !caps.audioCodecs.includes(audio.codec)) reasons.push(`audio codec ${audio.codec} is not supported by this browser`);
-  if (audio && browserDefaultAudio && audio.index !== browserDefaultAudio.index) {
+  if (audio && browserDefaultAudio && audio.index !== browserDefaultAudio.index && !caps.selectsAudioTrack) {
     reasons.push('selected audio track is not the default track');
   }
   reasons.push(...videoReasons);

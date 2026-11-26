@@ -134,5 +134,12 @@ export const UsersIcon = make(
     <path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" />
   </>,
 );
-export const LogOutIcon = make(<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />);
+export const ServerIcon = make(
+  <>
+    <rect x="3" y="3" width="18" height="8" rx="2" />
+    <rect x="3" y="13" width="18" height="8" rx="2" />
+    <path d="M7 7h.01M7 17h.01" />
+  </>,
+);
+export const LogOutIcon =make(<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />);
 export const LibraryIcon = make(<path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.5l3.9 1 -3.8 15-3.9-1z" />);

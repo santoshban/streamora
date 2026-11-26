@@ -106,6 +106,12 @@ describe('decidePlayback', () => {
     expect(d.reasons).toEqual(['selected audio track is not the default track']);
   });
 
+  it('direct-plays a non-default audio track for clients that switch tracks themselves', () => {
+    const french = { index: 2, type: 'audio' as const, codec: 'aac', channels: 2, language: 'fre' };
+    const d = decide(source({ streams: [h264, aac, french] }), { audioStreamIndex: 2, caps: { ...DEFAULT_CAPABILITIES, selectsAudioTrack: true } });
+    expect(d).toMatchObject({ method: 'direct', reasons: [], audioStreamIndex: 2 });
+  });
+
   it('falls back to transcoding when the container has no keyframe index', () => {
     const d = decide(source({ container: 'ts' }), { disallowCopy: true });
     expect(d.method).toBe('transcode');

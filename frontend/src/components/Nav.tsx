@@ -3,11 +3,12 @@ import { api } from '../lib/api';
 import { useServerEvents } from '../lib/events';
 import { useAsync, useDismiss, useMediaQuery, useScrollState } from '../lib/hooks';
 import { HOVER_QUERY } from '../lib/motion';
+import { inAndroidApp, postToApp } from '../lib/native';
 import { Link, useRouter } from '../lib/router';
 import type { Card } from '../lib/types';
 import { useSession } from '../state/session';
 import { Avatar, Logo } from './Brand';
-import { BellIcon, GearIcon, LogOutIcon, PencilIcon, SearchIcon, UsersIcon, XIcon } from './Icons';
+import { BellIcon, GearIcon, LogOutIcon, PencilIcon, SearchIcon, ServerIcon, UsersIcon, XIcon } from './Icons';
 import { ProfileEditor } from './ProfileEditor';
 import { useOpenTitle } from './titleActions';
 
@@ -292,6 +293,11 @@ function AccountMenu({ onEdit }: { onEdit: () => void }) {
             {profile.isAdmin && (
               <MenuItem icon={<GearIcon size={18} />} onClick={run(() => navigate('/admin/libraries'))}>
                 Manage server
+              </MenuItem>
+            )}
+            {inAndroidApp && (
+              <MenuItem icon={<ServerIcon size={18} />} onClick={run(() => postToApp({ type: 'changeServer' }))}>
+                Change server
               </MenuItem>
             )}
           </div>

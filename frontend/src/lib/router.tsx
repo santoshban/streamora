@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
+import { playInApp } from './native';
 
 /** A deliberately small history-API router: enough for a dozen routes and a modal query param. */
 
@@ -27,6 +28,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const navigate = useCallback<RouterValue['navigate']>((to, options = {}) => {
+    if (playInApp(to)) return;
     const before = window.location.pathname;
     window.history[options.replace ? 'replaceState' : 'pushState'](null, '', to);
     setLocation(read());

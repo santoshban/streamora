@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The web UI's palette (frontend/src/index.css). -->
+<resources>
+    <color name="brand">#E5383B</color>
+    <color name="surface">#141414</color>
+    <color name="panel">#181818</color>
+    <color name="ink">#E5E5E5</color>
+    <color name="soft">#B3B3B3</color>
+    <color name="muted">#808080</color>
+</resources>

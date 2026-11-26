@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { APP_RESUMED_EVENT, inAndroidApp } from './native';
 
 export interface AsyncState<T> {
   data: T | undefined;
@@ -38,6 +39,12 @@ export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>, deps: unk
   }, [...deps, tick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  // Back from the Android app's player: positions and Continue Watching changed.
+  useEffect(() => {
+    if (!inAndroidApp) return;
+    window.addEventListener(APP_RESUMED_EVENT, reload);
+    return () => window.removeEventListener(APP_RESUMED_EVENT, reload);
+  }, [reload]);
   const setData = useCallback((update: T | ((current: T | undefined) => T)) => {
     setDataState((current) => (typeof update === 'function' ? (update as (c: T | undefined) => T)(current) : update));
   }, []);

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Streamora</string>
+
+    <!-- Connect screen -->
+    <string name="connect_title">Connect to your server</string>
+    <string name="connect_body">Enter the address of the computer running Streamora. In the desktop app, turn on “Let other devices on my network connect” in the tray menu: it shows the address to use.</string>
+    <string name="address_hint">192.168.1.20:8484</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Connecting…</string>
+    <string name="connect_invalid">That doesn’t look like an address. Try something like 192.168.1.20:8484.</string>
+    <string name="connect_failed">No Streamora server answered at %1$s. Check the address, and that the server lets other devices connect.</string>
+    <string name="nearby_title">On your network</string>
+    <string name="scanning">Looking for Streamora servers…</string>
+    <string name="scan_none">No servers found. Make sure this phone is on the same Wi-Fi as the server, or type its address above.</string>
+    <string name="scan_no_wifi">Connect to Wi-Fi to look for servers, or type the address above.</string>
+    <string name="scan_again">Scan again</string>
+    <string name="server_version">Streamora %1$s</string>
+    <string name="server_unknown_version">Streamora</string>
+
+    <!-- Browse screen -->
+    <string name="unreachable">Can’t reach the Streamora server at %1$s.</string>
+    <string name="retry">Try again</string>
+    <string name="change_server">Change server</string>
+
+    <!-- Player -->
+    <string name="player_back">Back</string>
+    <string name="player_audio">Audio</string>
+    <string name="player_quality">Quality</string>
+    <string name="player_next">Next episode</string>
+    <string name="up_next_label">Next episode</string>
+    <string name="up_next_play">Play now</string>
+    <string name="up_next_play_in">Play in %1$d</string>
+    <string name="up_next_dismiss">Dismiss</string>
+    <string name="playback_failed">Playback failed (%1$s).</string>
+    <string name="session_ended">Your session ended. Go back and choose your profile again.</string>
+    <string-array name="qualities">
+        <item>Original</item>
+        <item>4K</item>
+        <item>1080p</item>
+        <item>720p</item>
+        <item>480p</item>
+    </string-array>
+</resources>

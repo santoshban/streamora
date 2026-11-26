@@ -23,6 +23,7 @@ const playbackSchema = z.strictObject({
       hdr: z.boolean().optional(),
       maxWidth: z.number().int().min(160).max(8192).optional(),
       maxHeight: z.number().int().min(120).max(8192).optional(),
+      selectsAudioTrack: z.boolean().optional(),
     })
     .optional(),
   quality: z.enum(['original', '2160p', '1080p', '720p', '480p']).default('original'),
