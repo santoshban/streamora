@@ -6,7 +6,7 @@ import { Link } from '../lib/router';
 import { useMusic, usePlayerState, usePlayerTime } from './context';
 import { clock } from './format';
 import { DragIcon, ExpandDownIcon, LikedIcon, LikeIcon, NextIcon, PrevIcon, RadioIcon } from './icons';
-import { PlayPauseButton, RepeatButton, SeekBar, ShuffleButton } from './PlayerBar';
+import { EqualizerButton, PlayPauseButton, RepeatButton, SeekBar, ShuffleButton } from './PlayerBar';
 import type { QueueItem } from './player';
 import type { Lyrics, RelatedData } from './types';
 import { Art, ArtistCard, IconBtn, MoreMenu, PlayingBars, removeEntry, SongRow, useTrackMenu } from './ui';
@@ -93,14 +93,17 @@ export function NowPlaying() {
               <ExpandDownIcon size={30} />
             </IconBtn>
             <span className="truncate px-2 text-xs font-medium tracking-wider text-white/70 uppercase">{state.source?.label ?? 'Now playing'}</span>
-            <MoreMenu entries={trackMenu(track)} />
+            <div className="flex shrink-0 items-center">
+              <EqualizerButton />
+              <MoreMenu entries={trackMenu(track)} />
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-[max(16px,4vw)] pb-6 min-[936px]:grid min-[936px]:grid-cols-[minmax(0,1fr)_minmax(340px,38%)] min-[936px]:gap-[4vw] min-[936px]:overflow-hidden min-[936px]:py-10">
             {/* Artwork */}
             <div className="flex shrink-0 items-center justify-center min-[936px]:min-h-0 min-[936px]:shrink">
               <div className="aspect-square w-full max-w-[min(100%,52vh)] min-[936px]:h-full min-[936px]:max-h-full min-[936px]:w-auto min-[936px]:max-w-full">
-                <Art key={track.album.id} src={track.art} seed={track.album.id} eager className="size-full shadow-[0_8px_48px_rgb(0_0_0/0.55)] animate-[pop_0.35s_var(--ease-out-expo)_backwards]" />
+                <Art key={track.art ?? track.album.id} src={track.art} seed={track.album.id} eager className="size-full shadow-[0_8px_48px_rgb(0_0_0/0.55)] animate-[pop_0.35s_var(--ease-out-expo)_backwards]" />
               </div>
             </div>
 

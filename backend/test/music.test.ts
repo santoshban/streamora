@@ -131,7 +131,11 @@ const fakeProbe = async (file: string): Promise<MediaProbe> => {
     hdr: null,
     audioCodec: 'mp3',
     audioChannels: 2,
-    streams: [{ index: 0, type: 'audio', codec: 'mp3', channels: 2, sampleRate: 44_100, default: true }],
+    streams: [
+      { index: 0, type: 'audio', codec: 'mp3', channels: 2, sampleRate: 44_100, default: true },
+      // `picture` in the test tags stands for artwork embedded in the file.
+      ...(tags.picture ? [{ index: 1, type: 'attachment' as const, codec: 'mjpeg', default: false }] : []),
+    ],
     tags,
   };
 };
@@ -298,5 +302,36 @@ describe('music library', () => {
     const { artists } = await get('/api/music/artists');
     // Kite Theory only had a track on the deleted compilation ("feat." credits don't count).
     expect(artists.map((a: { name: string }) => a.name).sort()).toEqual(['Aurora Fields', 'Neon Harbor']);
+  });
+
+  it('gives songs with their own picture their own artwork', async () => {
+    // A folder of downloads: one "album", but every file carries its own thumbnail.
+    writeFiles(media, {
+      'Downloads/Paper Boats [a1].mp3': tags({ title: 'Paper Boats', artist: 'Kite Theory', picture: 1 }),
+      'Downloads/Low Tide [b2].mp3': tags({ title: 'Low Tide', artist: 'Kite Theory', picture: 1 }),
+    });
+    await scan();
+    const { tracks } = await get('/api/music/tracks?sort=title');
+    const boats = tracks.find((t: { title: string }) => t.title === 'Paper Boats');
+    const tide = tracks.find((t: { title: string }) => t.title === 'Low Tide');
+    expect(boats.album.id).toBe(tide.album.id);
+    expect(boats.art).toMatch(new RegExp(`^/api/music/art/track/${boats.id}\\?v=`));
+    expect(tide.art).toMatch(new RegExp(`^/api/music/art/track/${tide.id}\\?v=`));
+    // Songs without one keep their album's cover.
+    const midnight = tracks.find((t: { title: string }) => t.title === 'Midnight Drive');
+    expect(midnight.art).toMatch(/^\/api\/music\/art\/album\//);
+    // The track route serves the album cover for those, and is a 404 (not a crash) when nothing can be shown.
+    const cover = await app.inject({ method: 'GET', url: `/api/music/art/track/${midnight.id}`, cookies: { [SESSION_COOKIE]: session } });
+    expect(cover.statusCode).toBe(200);
+    expect(cover.body).toBe('jpeg');
+    const noFfmpeg = await app.inject({ method: 'GET', url: boats.art, cookies: { [SESSION_COOKIE]: session } });
+    expect(noFfmpeg.statusCode).toBe(404);
+
+    // Playlist collages show the songs' pictures, each once.
+    const created = await send('POST', '/api/music/playlists', { name: 'Mixed', trackIds: [boats.id, midnight.id, tide.id, boats.id] });
+    expect(created.json().playlist.arts).toEqual([boats.art, midnight.art, tide.art]);
+
+    fs.rmSync(path.join(media, 'Downloads'), { recursive: true });
+    await scan();
   });
 });

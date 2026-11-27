@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { Spinner } from '../components/ui';
 import { Link } from '../lib/router';
-import { useMusic, usePlayerState, usePlayerTime } from './context';
+import { useEqualizerState, useMusic, usePlayerState, usePlayerTime } from './context';
 import { clock } from './format';
 import {
+  EqualizerIcon,
   ExpandDownIcon,
   ExpandUpIcon,
   LikedIcon,
@@ -178,6 +179,18 @@ function Volume() {
   );
 }
 
+/** Lit while the equalizer is shaping the sound. */
+export function EqualizerButton({ size = 40 }: { size?: number }) {
+  const { openEqualizer } = useMusic();
+  const eq = useEqualizerState();
+  const shaping = eq.enabled && (eq.preamp !== 0 || eq.gains.some((g) => g !== 0));
+  return (
+    <IconBtn label={shaping ? 'Equalizer (on)' : 'Equalizer'} size={size} active={shaping} onClick={openEqualizer} className={shaping ? '!text-[#ff4e6e]' : ''}>
+      <EqualizerIcon />
+    </IconBtn>
+  );
+}
+
 function TimeLabel() {
   const time = usePlayerTime();
   return (
@@ -245,6 +258,7 @@ export function PlayerBar() {
 
         {/* Right: volume, modes, expand */}
         <div className="hidden items-center sm:flex">
+          <EqualizerButton />
           <Volume />
           <RepeatButton />
           <ShuffleButton />

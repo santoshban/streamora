@@ -94,6 +94,7 @@ const hash = (s: string) => createHash('sha1').update(s).digest('hex').slice(0, 
 export const albumArtUrl = (albumId: number, cover: string | null | undefined) =>
   cover ? `/api/music/art/album/${albumId}?v=${hash(cover)}` : null;
 export const artistArtUrl = (artistId: number, image: string) => `/api/music/art/artist/${artistId}?v=${hash(image)}`;
+export const trackArtUrl = (trackId: number, version: string) => `/api/music/art/track/${trackId}?v=${hash(version)}`;
 
 /** Container + codec → MIME type browsers understand (they decide with canPlayType). */
 export function mimeFor(codec: string | null, container: string | null): string | null {
@@ -173,6 +174,10 @@ const trackColumns = {
   albumYear: musicAlbums.year,
   codec: musicTracks.codec,
   container: musicTracks.container,
+  path: musicTracks.path,
+  sizeBytes: musicTracks.sizeBytes,
+  mtimeMs: musicTracks.mtimeMs,
+  hasArt: musicTracks.hasEmbeddedArt,
 };
 
 type TrackRow = {
@@ -191,7 +196,15 @@ type TrackRow = {
   albumYear: number | null;
   codec: string | null;
   container: string | null;
+  path: string;
+  sizeBytes: number;
+  mtimeMs: number;
+  hasArt: boolean;
 };
+
+/** A song's own picture when it has one (downloads in one folder each carry their own), else its album's cover. */
+const trackArtOf = (r: Pick<TrackRow, 'id' | 'albumId' | 'cover' | 'path' | 'sizeBytes' | 'mtimeMs' | 'hasArt'>) =>
+  r.hasArt ? trackArtUrl(r.id, `${r.path}|${r.sizeBytes}|${r.mtimeMs}`) : albumArtUrl(r.albumId, r.cover);
 
 const albumColumns = {
   id: musicAlbums.id,
@@ -284,7 +297,7 @@ export class MusicService {
       trackNumber: r.trackNumber,
       discNumber: r.discNumber,
       year: r.year ?? r.albumYear,
-      art: albumArtUrl(r.albumId, r.cover),
+      art: trackArtOf(r),
       mime: mimeFor(r.codec, r.container),
       liked: liked.has(r.id),
     }));
@@ -884,21 +897,30 @@ export class MusicService {
           GROUP BY pt.playlist_id`)
         .map((r) => [r.id, r]),
     );
-    const covers = this.db.all<{ id: number; albumId: number; cover: string }>(sql`
-      SELECT pt.playlist_id AS id, al.id AS albumId, al.cover AS cover, min(pt.position) AS pos
-      FROM playlist_tracks pt JOIN music_tracks t ON t.id = pt.track_id JOIN music_albums al ON al.id = t.album_id
-      WHERE pt.playlist_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) AND al.cover IS NOT NULL AND ${VISIBLE_T}
-      GROUP BY pt.playlist_id, al.id ORDER BY pt.playlist_id, pos`);
+    // The collage: the first four different pictures among the first songs.
+    const firstTracks = this.db.all<{ playlistId: number; id: number; albumId: number; cover: string | null; path: string; sizeBytes: number; mtimeMs: number; hasArt: number }>(sql`
+      SELECT playlistId, id, albumId, cover, path, sizeBytes, mtimeMs, hasArt FROM (
+        SELECT pt.playlist_id AS playlistId, t.id AS id, al.id AS albumId, al.cover AS cover, t.path AS path,
+          t.size_bytes AS sizeBytes, t.mtime_ms AS mtimeMs, t.has_embedded_art AS hasArt,
+          row_number() OVER (PARTITION BY pt.playlist_id ORDER BY pt.position) AS n
+        FROM playlist_tracks pt JOIN music_tracks t ON t.id = pt.track_id JOIN music_albums al ON al.id = t.album_id
+        WHERE pt.playlist_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) AND (t.has_embedded_art = 1 OR al.cover IS NOT NULL) AND ${VISIBLE_T})
+      WHERE n <= 40 ORDER BY playlistId, n`);
+    const arts = new Map<number, string[]>();
+    for (const t of firstTracks) {
+      const list = arts.get(t.playlistId) ?? [];
+      // Songs of an album that only has a folder cover all share it: show it once.
+      const art = trackArtOf({ ...t, hasArt: !!t.hasArt });
+      if (art && list.length < 4 && !list.includes(art)) list.push(art);
+      arts.set(t.playlistId, list);
+    }
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
       trackCount: stats.get(r.id)?.n ?? 0,
       duration: Math.round(stats.get(r.id)?.d ?? 0),
-      arts: covers
-        .filter((c) => c.id === r.id)
-        .slice(0, 4)
-        .map((c) => albumArtUrl(c.albumId, c.cover)!),
+      arts: arts.get(r.id) ?? [],
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     }));
@@ -1007,6 +1029,18 @@ export class MusicService {
 
   track(id: number): MusicTrack {
     return this.requireTrack(id);
+  }
+
+  /** The picture inside the song's file, or its album's cover once it has none. */
+  trackArt(id: number): string | null {
+    const row = this.db
+      .select({ path: musicTracks.path, hasArt: musicTracks.hasEmbeddedArt, cover: musicAlbums.cover })
+      .from(musicTracks)
+      .innerJoin(musicAlbums, eq(musicAlbums.id, musicTracks.albumId))
+      .where(eq(musicTracks.id, id))
+      .get();
+    if (!row) return null;
+    return row.hasArt ? `embedded:${row.path}` : row.cover;
   }
 
   albumCover(id: number): string | null {

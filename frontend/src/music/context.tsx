@@ -1,9 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Button, inputClass, Modal, useToast } from '../components/ui';
 import { api, errorText } from '../lib/api';
 import { inAndroidApp, MUSIC_COMMAND_EVENT, postToApp } from '../lib/native';
+import type { EqSettings } from './equalizer';
 import { MusicPlayer, type PlayerState, type PlayerTime } from './player';
 import type { Playlist, Track } from './types';
+
+const EqualizerDialog = lazy(() => import('./EqualizerDialog'));
 
 interface MusicContextValue {
   player: MusicPlayer;
@@ -16,6 +19,8 @@ interface MusicContextValue {
   saveToPlaylist(tracks: Track[]): void;
   /** Opens "New playlist", optionally with tracks in it. */
   newPlaylist(tracks?: Track[]): void;
+  /** Opens the equalizer. */
+  openEqualizer(): void;
   likesVersion: number;
 }
 
@@ -69,6 +74,7 @@ export function MusicProvider({ profileId, children }: { profileId: number; chil
   );
 
   const [dialog, setDialog] = useState<{ kind: 'save' | 'new'; tracks: Track[] } | null>(null);
+  const [equalizer, setEqualizer] = useState(false);
   const value = useMemo<MusicContextValue>(
     () => ({
       player,
@@ -78,6 +84,7 @@ export function MusicProvider({ profileId, children }: { profileId: number; chil
       toggleLike,
       saveToPlaylist: (tracks) => setDialog({ kind: 'save', tracks }),
       newPlaylist: (tracks = []) => setDialog({ kind: 'new', tracks }),
+      openEqualizer: () => setEqualizer(true),
       likesVersion,
     }),
     [player, playlists, reloadPlaylists, isLiked, toggleLike, likesVersion],
@@ -90,6 +97,11 @@ export function MusicProvider({ profileId, children }: { profileId: number; chil
         <SaveToPlaylistDialog tracks={dialog.tracks} onClose={() => setDialog(null)} onNew={() => setDialog({ kind: 'new', tracks: dialog.tracks })} />
       )}
       {dialog?.kind === 'new' && <PlaylistDialog tracks={dialog.tracks} onClose={() => setDialog(null)} />}
+      {equalizer && (
+        <Suspense fallback={null}>
+          <EqualizerDialog onClose={() => setEqualizer(false)} />
+        </Suspense>
+      )}
     </MusicContext.Provider>
   );
 }
@@ -113,6 +125,11 @@ export function usePlayerState(): PlayerState {
 export function usePlayerTime(): PlayerTime {
   const { player } = useMusic();
   return useSyncExternalStore(player.subscribeTime, player.getTime);
+}
+
+export function useEqualizerState(): EqSettings {
+  const { player } = useMusic();
+  return useSyncExternalStore(player.equalizer.subscribe, player.equalizer.getState);
 }
 
 // ── Android app ──────────────────────────────────────────────────────────────

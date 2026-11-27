@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { Equalizer } from './equalizer';
 import type { Track } from './types';
 
 /** One queue entry; `key` keeps duplicates of the same track apart. */
@@ -78,6 +79,8 @@ function shuffled<T>(items: T[]): T[] {
  */
 export class MusicPlayer {
   private readonly audio = new Audio();
+  /** Shapes this player's sound; its settings are kept next to the queue's. */
+  readonly equalizer: Equalizer;
   private state: PlayerState;
   private time: PlayerTime = { current: 0, duration: 0, buffered: 0 };
   private readonly listeners = new Set<() => void>();
@@ -99,6 +102,7 @@ export class MusicPlayer {
 
   constructor(private readonly storageKey: string) {
     this.audio.preload = 'auto';
+    this.equalizer = new Equalizer(this.audio, `${storageKey}.eq`);
     const saved = this.restore();
     this.state = {
       queue: saved?.queue ?? [],
@@ -139,6 +143,7 @@ export class MusicPlayer {
     this.saveNow();
     window.removeEventListener('pagehide', this.saveNow);
     this.audio.pause();
+    this.equalizer.suspend();
     if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
   }
 
@@ -300,6 +305,7 @@ export class MusicPlayer {
 
   private playAudio(): void {
     this.set({ active: true, buffering: true }, false);
+    this.equalizer.prepare();
     this.audio.play().catch((err: unknown) => {
       // Autoplay blocked (no user gesture yet): stay paused, ready to go.
       if (err instanceof DOMException && err.name === 'NotAllowedError') this.set({ playing: false, buffering: false }, false);

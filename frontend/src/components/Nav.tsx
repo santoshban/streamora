@@ -3,14 +3,12 @@ import { api } from '../lib/api';
 import { useServerEvents } from '../lib/events';
 import { useAsync, useDismiss, useMediaQuery, useScrollState } from '../lib/hooks';
 import { HOVER_QUERY } from '../lib/motion';
-import { inAndroidApp, postToApp } from '../lib/native';
 import { Link, useRouter } from '../lib/router';
 import type { Card } from '../lib/types';
 import { useSession } from '../state/session';
+import { profileRole, useAccountActions, type AccountAction } from './AccountActions';
 import { Avatar, Logo } from './Brand';
-import { ConnectDeviceDialog } from './ConnectDevice';
-import { BellIcon, GearIcon, LogOutIcon, PencilIcon, PhoneIcon, SearchIcon, ServerIcon, UsersIcon, XIcon } from './Icons';
-import { ProfileEditor } from './ProfileEditor';
+import { BellIcon, LogOutIcon, SearchIcon, XIcon } from './Icons';
 import { useOpenTitle } from './titleActions';
 
 const LINKS = [
@@ -25,10 +23,9 @@ const LINKS = [
  *  scrolls. Phones get a row of category chips that tucks away while scrolling down. */
 export function Nav() {
   const { path, query, navigate } = useRouter();
-  const { profile, updateProfile } = useSession();
+  const { profile } = useSession();
   const { scrolled, down } = useScrollState(0);
-  const [editing, setEditing] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const account = useAccountActions();
   const chipsHidden = scrolled && down;
 
   if (!profile) return null;
@@ -52,7 +49,7 @@ export function Nav() {
             onSearch={(q) => navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/', { replace: path === '/search' })}
           />
           <Notifications />
-          <AccountMenu onEdit={() => setEditing(true)} onConnect={() => setConnecting(true)} />
+          <AccountMenu actions={account.actions} onSignOut={account.signOut} />
         </div>
       </nav>
 
@@ -87,8 +84,7 @@ export function Nav() {
         </div>
       </div>
 
-      {editing && <ProfileEditor profile={profile} asAdmin={false} onClose={() => setEditing(false)} onSaved={updateProfile} />}
-      {connecting && <ConnectDeviceDialog onClose={() => setConnecting(false)} />}
+      {account.dialogs}
     </header>
   );
 }
@@ -241,9 +237,8 @@ function Notifications() {
 }
 
 /** Avatar + caret; opens on hover (mouse) or click, with Netflix's arrowed dark menu. */
-function AccountMenu({ onEdit, onConnect }: { onEdit: () => void; onConnect: () => void }) {
-  const { navigate } = useRouter();
-  const { profile, switchProfile, signOut } = useSession();
+function AccountMenu({ actions, onSignOut }: { actions: AccountAction[]; onSignOut: () => void }) {
+  const { profile } = useSession();
   const hover = useMediaQuery(HOVER_QUERY);
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -284,32 +279,17 @@ function AccountMenu({ onEdit, onConnect }: { onEdit: () => void; onConnect: () 
             <Avatar profile={profile} size={32} className="rounded-[4px]" />
             <div className="min-w-0">
               <p className="truncate font-semibold text-white">{profile.name}</p>
-              <p className="text-xs text-muted">{profile.isKids ? 'Kids profile' : profile.isAdmin ? 'Owner' : 'Profile'}</p>
+              <p className="text-xs text-muted">{profileRole(profile)}</p>
             </div>
           </div>
           <div className="py-2">
-            <MenuItem icon={<PencilIcon size={18} />} onClick={run(onEdit)}>
-              Edit profile
-            </MenuItem>
-            <MenuItem icon={<UsersIcon size={18} />} onClick={run(switchProfile)}>
-              Switch profile
-            </MenuItem>
-            {profile.isAdmin && (
-              <MenuItem icon={<GearIcon size={18} />} onClick={run(() => navigate('/admin/libraries'))}>
-                Manage server
+            {actions.map(({ id, label, Icon, onSelect }) => (
+              <MenuItem key={id} icon={<Icon size={18} />} onClick={run(onSelect)}>
+                {label}
               </MenuItem>
-            )}
-            {inAndroidApp ? (
-              <MenuItem icon={<ServerIcon size={18} />} onClick={run(() => postToApp({ type: 'changeServer' }))}>
-                Change server
-              </MenuItem>
-            ) : (
-              <MenuItem icon={<PhoneIcon size={18} />} onClick={run(onConnect)}>
-                Connect a device
-              </MenuItem>
-            )}
+            ))}
           </div>
-          <button type="button" role="menuitem" onClick={run(() => void signOut())} className="flex w-full items-center justify-center gap-2 border-t border-white/15 py-3.5 text-ink hover:underline">
+          <button type="button" role="menuitem" onClick={run(onSignOut)} className="flex w-full items-center justify-center gap-2 border-t border-white/15 py-3.5 text-ink hover:underline">
             <LogOutIcon size={15} /> Sign out of Streamora
           </button>
         </div>

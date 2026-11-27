@@ -207,6 +207,8 @@ export interface MenuEntry {
   label: string;
   icon: ReactNode;
   onSelect: () => void;
+  /** Draws a divider above this entry. */
+  separated?: boolean;
 }
 
 /** A ⋮ button with a dark popup menu, placed in a portal so scrollers can't clip it. */
@@ -231,7 +233,20 @@ export function MoreMenu({ entries, label = 'Action menu', size = 40, className 
   );
 }
 
-export function PopupMenu({ anchor, entries, onClose }: { anchor: DOMRect | { left: number; top: number; bottom: number; right: number }; entries: MenuEntry[]; onClose: () => void }) {
+export function PopupMenu({
+  anchor,
+  entries,
+  onClose,
+  header,
+  label,
+}: {
+  anchor: DOMRect | { left: number; top: number; bottom: number; right: number };
+  entries: MenuEntry[];
+  onClose: () => void;
+  /** Shown above the entries (the account menu's name and avatar). */
+  header?: ReactNode;
+  label?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -275,24 +290,28 @@ export function PopupMenu({ anchor, entries, onClose }: { anchor: DOMRect | { le
     <div
       ref={ref}
       role="menu"
-      className="fixed z-[60] min-w-56 rounded-xl bg-[#212121] py-2 text-sm shadow-[0_4px_32px_rgb(0_0_0/0.6)] ring-1 ring-white/10 animate-menu"
+      aria-label={label}
+      className="fixed z-[60] max-h-[calc(100dvh-16px)] min-w-56 overflow-y-auto rounded-xl bg-[#212121] py-2 text-sm shadow-[0_4px_32px_rgb(0_0_0/0.6)] ring-1 ring-white/10 animate-menu"
       style={pos ?? { left: -9999, top: -9999 }}
     >
+      {header}
       {entries.map((e) => (
-        <button
-          key={e.label}
-          type="button"
-          role="menuitem"
-          onClick={(ev) => {
-            ev.stopPropagation();
-            onClose();
-            e.onSelect();
-          }}
-          className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-white/90 transition-colors hover:bg-white/10"
-        >
-          <span className="text-white/70">{e.icon}</span>
-          {e.label}
-        </button>
+        <div key={e.label} role="none">
+          {e.separated &&<div role="separator" className="my-2 border-t border-white/10" />}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              onClose();
+              e.onSelect();
+            }}
+            className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-white/90 transition-colors hover:bg-white/10"
+          >
+            <span className="grid w-[22px] place-items-center text-white/70">{e.icon}</span>
+            {e.label}
+          </button>
+        </div>
       ))}
     </div>,
     document.body,

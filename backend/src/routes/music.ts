@@ -273,6 +273,11 @@ export const musicRoutes: FastifyPluginAsync = async (app) => {
     return sendArt(music.albumCover(id), reply);
   });
 
+  app.get('/music/art/track/:id', async (request, reply) => {
+    const { id } = parseOrThrow(numericIdParams, request.params, 'track id');
+    return sendArt(music.trackArt(id), reply);
+  });
+
   app.get('/music/art/artist/:id', async (request, reply) => {
     const { id } = parseOrThrow(numericIdParams, request.params, 'artist id');
     return sendArt(music.artistImage(id), reply);

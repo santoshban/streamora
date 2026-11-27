@@ -1,12 +1,15 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { profileRole, useAccountActions } from '../components/AccountActions';
 import { Avatar, Logo } from '../components/Brand';
+import { LogOutIcon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 import { api } from '../lib/api';
 import { useDebounced, useMediaQuery, useScrollState } from '../lib/hooks';
 import { Link, matchPath, useRouter } from '../lib/router';
 import { useSession } from '../state/session';
 import { useMusic, usePlayerState } from './context';
-import { AddIcon, CloseIcon, ExploreIcon, HomeIcon, HomeOutlineIcon, LibraryIcon, MenuIcon, MovieIcon, PinIcon, PlayIcon, SearchIcon, BackIcon } from './icons';
+import { AddIcon, CloseIcon, EqualizerIcon, ExploreIcon, HomeIcon, HomeOutlineIcon, LibraryIcon, MenuIcon, MovieIcon, PinIcon, PlayIcon, SearchIcon, BackIcon } from './icons';
 import { NowPlaying } from './NowPlaying';
 import { PlayerBar } from './PlayerBar';
 import { IconBtn, loadPlaylistTracks, PopupMenu } from './ui';
@@ -154,7 +157,9 @@ export function MusicLogo() {
 function TopBar({ onMenu }: { onMenu: () => void }) {
   const { scrolled } = useScrollState(4);
   const { path, query, navigate } = useRouter();
-  const { profile, switchProfile } = useSession();
+  const { profile } = useSession();
+  const { openEqualizer } = useMusic();
+  const account = useAccountActions();
   const [searchOpen, setSearchOpen] = useState(false);
   const [menu, setMenu] = useState<DOMRect | null>(null);
   const phone = !useMediaQuery('(min-width: 640px)');
@@ -187,23 +192,48 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
               <MovieIcon size={20} /> Movies &amp; TV
             </Link>
             {profile && (
-              <button type="button" aria-label="Account menu" onClick={(e) => setMenu(menu ? null : e.currentTarget.getBoundingClientRect())} className="ml-1 rounded-full">
+              <button
+                type="button"
+                aria-label="Account menu"
+                aria-haspopup="menu"
+                aria-expanded={!!menu}
+                onClick={(e) => {
+                  // Read the rect now: React clears currentTarget before a state updater runs.
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenu((m) => (m ? null : rect));
+                }}
+                className="ml-1 rounded-full"
+              >
                 <Avatar profile={profile} size={32} className="!rounded-full" />
               </button>
             )}
           </>
         )}
       </div>
-      {menu && (
+      {menu && profile && (
         <PopupMenu
           anchor={menu}
+          label="Account menu"
           onClose={() => setMenu(null)}
+          header={
+            <div className="mb-2 flex items-center gap-3 border-b border-white/10 px-4 pt-2 pb-4">
+              <Avatar profile={profile} size={40} className="!rounded-full" />
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-medium text-white">{profile.name}</p>
+                <p className="text-[13px] text-white/60">{profileRole(profile)}</p>
+              </div>
+            </div>
+          }
           entries={[
             { label: 'Movies & TV', icon: <MovieIcon size={22} />, onSelect: () => navigate('/') },
-            { label: 'Switch profile', icon: <Avatar profile={profile!} size={22} className="!rounded-full" />, onSelect: switchProfile },
+            { label: 'Equalizer', icon: <EqualizerIcon size={22} />, onSelect: openEqualizer },
+            ...account.actions.map(({ label, Icon, onSelect }, i) => ({ label, icon: <Icon size={20} />, onSelect, separated: i === 0 })),
+            { label: 'Sign out of Streamora', icon: <LogOutIcon size={20} />, onSelect: account.signOut, separated: true },
           ]}
         />
       )}
+      {/* Above the player bar and guide, not inside the header's layer. */}
+      {createPortal(account.dialogs, document.body)}
     </header>
   );
 }
