@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/icon-192.png" width="96" height="96" alt="Streamora logo">
+  <img src="docs/screenshots/banner.jpg" alt="Streamora on a desktop and a phone: the home page, the music section and the music player" width="100%">
 </p>
 
 <h1 align="center">Streamora</h1>
@@ -16,6 +16,28 @@
 </p>
 
 ---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/home.jpg" alt="Home page with a featured title and a My List row"></td>
+    <td width="50%"><img src="docs/screenshots/title.jpg" alt="Title details with cast, genres and More Like This"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/music-home.jpg" alt="Music home with Quick picks and generated mixes"></td>
+    <td><img src="docs/screenshots/music-player.jpg" alt="Music player page with each song's own artwork in Up next"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/equalizer.jpg" alt="The music equalizer with presets, ten bands and a preamp"></td>
+    <td align="center">
+      <img src="docs/screenshots/phone-home.jpg" alt="Home page on a phone" width="44%">&nbsp;
+      <img src="docs/screenshots/phone-player.jpg" alt="Music player on a phone" width="44%">
+    </td>
+  </tr>
+</table>
+
+<sub>Shown with the Blender Foundation's open movies (CC BY), artwork from TMDB, and made-up music.</sub>
 
 ## Features
 
@@ -41,6 +63,7 @@
 - Album, artist, playlist and search pages; Liked music; playlists you can reorder; play history per profile
 - Player bar plus a full player page with **Up next** (drag to reorder, autoplay of similar songs), **synced lyrics** from `.lrc` files and **Related**
 - Shuffle, repeat, radio from any song, album or artist, keyboard shortcuts and your OS media keys; music keeps playing while you browse movies
+- A 10-band **equalizer** with presets (Bass boost, Vocal, Rock, Late night, …) and a preamp, saved per profile on each device
 - Plays MP3, AAC/M4A, FLAC, Ogg/Opus and WAV directly, and converts the rest (WMA, ALAC, APE, …) on the fly
 
 **Library management**
@@ -173,6 +196,7 @@ Music/
 ```
 
 - **Album art:** `cover`, `folder`, `front` or `album` images in the album folder, otherwise the picture inside the files. An `artist.jpg` or `folder.jpg` in the artist's folder becomes their photo.
+- **Song art:** a song with a picture inside its file shows that picture, so a folder of downloaded singles shows each song's own thumbnail. Songs without one show their album's art.
 - **Lyrics:** a `.lrc` file with the same name as the song (synced), or lyrics stored in the file's tags.
 - **Formats:** MP3, FLAC, M4A/AAC, ALAC, Ogg Vorbis, Opus, WAV, AIFF, WMA, APE, WavPack, MKA and DSD files. Formats the browser can't play are converted to AAC while they play.
 
